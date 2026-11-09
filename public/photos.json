@@ -1,0 +1,407 @@
+[
+  {
+    "id": "20220815_112322212-01",
+    "src": "/photos/20220815_112322212-01.jpeg",
+    "title": "112322212 01",
+    "location": "",
+    "description": "",
+    "width": 3648,
+    "height": 2736,
+    "aspectRatio": 1.3333333333333333,
+    "ratioLabel": "4:3",
+    "dominantColor": [
+      144,
+      180,
+      217
+    ],
+    "exif": {
+      "camera": "samsung SM-S901N",
+      "lens": "samsung",
+      "focalLength": "7 mm",
+      "aperture": "ƒ/2.4",
+      "shutterSpeed": "1/2817 s",
+      "iso": 47,
+      "date": "2022-08-15"
+    },
+    "sample": false,
+    "credit": null
+  },
+  {
+    "id": "20221113_132830094-01",
+    "src": "/photos/20221113_132830094-01.jpeg",
+    "title": "132830094 01",
+    "location": "",
+    "description": "",
+    "width": 2736,
+    "height": 3648,
+    "aspectRatio": 0.75,
+    "ratioLabel": "3:4",
+    "dominantColor": [
+      112,
+      77,
+      16
+    ],
+    "exif": {
+      "camera": "samsung SM-S901N",
+      "lens": "samsung",
+      "focalLength": "7 mm",
+      "aperture": "ƒ/2.4",
+      "shutterSpeed": "1/404 s",
+      "iso": 49,
+      "date": "2022-11-13"
+    },
+    "sample": false,
+    "credit": null
+  },
+  {
+    "id": "20221212_024806-01",
+    "src": "/photos/20221212_024806-01.jpeg",
+    "title": "024806 01",
+    "location": "",
+    "description": "",
+    "width": 2736,
+    "height": 2736,
+    "aspectRatio": 1,
+    "ratioLabel": "1:1",
+    "dominantColor": [
+      182,
+      197,
+      211
+    ],
+    "exif": {
+      "camera": "samsung SM-S901N",
+      "lens": null,
+      "focalLength": "7 mm",
+      "aperture": "ƒ/2.4",
+      "shutterSpeed": "1/1250 s",
+      "iso": 50,
+      "date": "2022-12-11"
+    },
+    "sample": false,
+    "credit": null
+  },
+  {
+    "id": "20230103_175444282.NIGHT-01",
+    "src": "/photos/20230103_175444282.NIGHT-01.jpeg",
+    "title": "175444282.NIGHT 01",
+    "location": "",
+    "description": "",
+    "width": 3613,
+    "height": 2710,
+    "aspectRatio": 1.333210332103321,
+    "ratioLabel": "4:3",
+    "dominantColor": [
+      118,
+      105,
+      111
+    ],
+    "exif": {
+      "camera": "samsung SM-S901N",
+      "lens": "samsung",
+      "focalLength": "7 mm",
+      "aperture": "ƒ/2.4",
+      "shutterSpeed": "1/24 s",
+      "iso": 12750,
+      "date": "2023-01-03"
+    },
+    "sample": false,
+    "credit": null
+  },
+  {
+    "id": "20230225_170533485-01",
+    "src": "/photos/20230225_170533485-01.jpeg",
+    "title": "170533485 01",
+    "location": "",
+    "description": "",
+    "width": 3648,
+    "height": 2736,
+    "aspectRatio": 1.3333333333333333,
+    "ratioLabel": "4:3",
+    "dominantColor": [
+      51,
+      84,
+      106
+    ],
+    "exif": {
+      "camera": "samsung SM-S901N",
+      "lens": "samsung",
+      "focalLength": "7 mm",
+      "aperture": "ƒ/2.4",
+      "shutterSpeed": "1/900 s",
+      "iso": 52,
+      "date": "2023-02-25"
+    },
+    "sample": false,
+    "credit": null
+  },
+  {
+    "id": "20230301_112926629-02",
+    "src": "/photos/20230301_112926629-02.jpeg",
+    "title": "112926629 02",
+    "location": "",
+    "description": "",
+    "width": 3648,
+    "height": 2736,
+    "aspectRatio": 1.3333333333333333,
+    "ratioLabel": "4:3",
+    "dominantColor": [
+      48,
+      48,
+      48
+    ],
+    "exif": {
+      "camera": "samsung SM-S901N",
+      "lens": "samsung",
+      "focalLength": "7 mm",
+      "aperture": "ƒ/2.4",
+      "shutterSpeed": "1/296 s",
+      "iso": 50,
+      "date": "2023-03-01"
+    },
+    "sample": false,
+    "credit": null
+  },
+  {
+    "id": "20230922_065132226-01",
+    "src": "/photos/20230922_065132226-01.jpeg",
+    "title": "065132226 01",
+    "location": "",
+    "description": "",
+    "width": 3580,
+    "height": 2685,
+    "aspectRatio": 1.3333333333333333,
+    "ratioLabel": "4:3",
+    "dominantColor": [
+      46,
+      56,
+      83
+    ],
+    "exif": {
+      "camera": "samsung SM-S901N",
+      "lens": "samsung",
+      "focalLength": "7 mm",
+      "aperture": "ƒ/2.4",
+      "shutterSpeed": "1/1393 s",
+      "iso": 50,
+      "date": "2023-09-21"
+    },
+    "sample": false,
+    "credit": null
+  },
+  {
+    "id": "20240626_130500227",
+    "src": "/photos/20240626_130500227.jpg",
+    "title": "130500227",
+    "location": "",
+    "description": "",
+    "width": 5106,
+    "height": 3830,
+    "aspectRatio": 1.333159268929504,
+    "ratioLabel": "4:3",
+    "dominantColor": [
+      38,
+      45,
+      26
+    ],
+    "exif": {
+      "camera": "samsung SM-S901N",
+      "lens": "samsung",
+      "focalLength": "7 mm",
+      "aperture": "ƒ/2.4",
+      "shutterSpeed": "1/120 s",
+      "iso": 94,
+      "date": "2024-06-26"
+    },
+    "sample": false,
+    "credit": null
+  },
+  {
+    "id": "20250129_194728",
+    "src": "/photos/20250129_194728.jpg",
+    "title": "194728",
+    "location": "",
+    "description": "",
+    "width": 3829,
+    "height": 3830,
+    "aspectRatio": 0.9997389033942559,
+    "ratioLabel": "1:1",
+    "dominantColor": [
+      201,
+      215,
+      238
+    ],
+    "exif": {
+      "camera": "samsung SM-S901N",
+      "lens": null,
+      "focalLength": "7 mm",
+      "aperture": "ƒ/2.4",
+      "shutterSpeed": "1/1250 s",
+      "iso": 45,
+      "date": "2024-11-09"
+    },
+    "sample": false,
+    "credit": null
+  },
+  {
+    "id": "20251003_110219353",
+    "src": "/photos/20251003_110219353.jpg",
+    "title": "110219353",
+    "location": "",
+    "description": "",
+    "width": 3830,
+    "height": 5106,
+    "aspectRatio": 0.7500979240109675,
+    "ratioLabel": "3:4",
+    "dominantColor": [
+      78,
+      48,
+      19
+    ],
+    "exif": {
+      "camera": "samsung SM-S901N",
+      "lens": "samsung",
+      "focalLength": "7 mm",
+      "aperture": "ƒ/2.4",
+      "shutterSpeed": "1/120 s",
+      "iso": 47,
+      "date": "2025-10-03"
+    },
+    "sample": false,
+    "credit": null
+  },
+  {
+    "id": "20260607_130217939",
+    "src": "/photos/20260607_130217939.jpeg",
+    "title": "130217939",
+    "location": "",
+    "description": "",
+    "width": 3830,
+    "height": 5106,
+    "aspectRatio": 0.7500979240109675,
+    "ratioLabel": "3:4",
+    "dominantColor": [
+      114,
+      175,
+      202
+    ],
+    "exif": {
+      "camera": "samsung SM-S901N",
+      "lens": "samsung",
+      "focalLength": "7 mm",
+      "aperture": "ƒ/2.4",
+      "shutterSpeed": "1/120 s",
+      "iso": 47,
+      "date": "2026-06-07"
+    },
+    "sample": false,
+    "credit": null
+  },
+  {
+    "id": "1000022016-03",
+    "src": "/photos/1000022016-03.jpeg",
+    "title": "03",
+    "location": "",
+    "description": "",
+    "width": 2736,
+    "height": 3648,
+    "aspectRatio": 0.75,
+    "ratioLabel": "3:4",
+    "dominantColor": [
+      170,
+      181,
+      213
+    ],
+    "exif": {
+      "camera": "samsung SM-S901N",
+      "lens": "samsung",
+      "focalLength": "7 mm",
+      "aperture": "ƒ/2.4",
+      "shutterSpeed": "1/40 s",
+      "iso": 749,
+      "date": "2023-07-09"
+    },
+    "sample": false,
+    "credit": null
+  },
+  {
+    "id": "1000105070",
+    "src": "/photos/1000105070.jpg",
+    "title": "",
+    "location": "",
+    "description": "",
+    "width": 3830,
+    "height": 5106,
+    "aspectRatio": 0.7500979240109675,
+    "ratioLabel": "3:4",
+    "dominantColor": [
+      77,
+      48,
+      20
+    ],
+    "exif": {
+      "camera": "samsung SM-S901N",
+      "lens": "samsung",
+      "focalLength": "7 mm",
+      "aperture": "ƒ/2.4",
+      "shutterSpeed": "1/11 s",
+      "iso": 351,
+      "date": "2026-05-02"
+    },
+    "sample": false,
+    "credit": null
+  },
+  {
+    "id": "1000106384",
+    "src": "/photos/1000106384.jpeg",
+    "title": "",
+    "location": "",
+    "description": "",
+    "width": 3403,
+    "height": 4537,
+    "aspectRatio": 0.7500551024906326,
+    "ratioLabel": "3:4",
+    "dominantColor": [
+      74,
+      42,
+      16
+    ],
+    "exif": {
+      "camera": "samsung SM-S901N",
+      "lens": "samsung",
+      "focalLength": "7 mm",
+      "aperture": "ƒ/2.4",
+      "shutterSpeed": "1/40 s",
+      "iso": 113,
+      "date": "2026-06-11"
+    },
+    "sample": false,
+    "credit": null
+  },
+  {
+    "id": "1000106505",
+    "src": "/photos/1000106505.jpeg",
+    "title": "",
+    "location": "",
+    "description": "",
+    "width": 3830,
+    "height": 5106,
+    "aspectRatio": 0.7500979240109675,
+    "ratioLabel": "3:4",
+    "dominantColor": [
+      149,
+      114,
+      106
+    ],
+    "exif": {
+      "camera": "samsung SM-S901N",
+      "lens": "samsung",
+      "focalLength": "7 mm",
+      "aperture": "ƒ/2.4",
+      "shutterSpeed": "1/40 s",
+      "iso": 430,
+      "date": "2026-06-16"
+    },
+    "sample": false,
+    "credit": null
+  }
+]
