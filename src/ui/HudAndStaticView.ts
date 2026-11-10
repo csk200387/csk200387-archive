@@ -6,17 +6,18 @@ export interface UiActions {
   go: (index: number, inspect?: boolean) => void;
   step: (direction: number) => void;
   exit: () => void;
-  roam?: (enabled: boolean) => void;
 }
 
+const HTML_ENTITIES: Readonly<Record<string, string>> = {
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '\"': "&quot;",
+  "'": "&#39;",
+};
+const escapeCharacter = (character: string) => HTML_ENTITIES[character];
 const esc = (text: unknown) =>
-  String(text ?? "").replace(
-    /[&<>"']/g,
-    (c) =>
-      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
-        c
-      ]!,
-  );
+  String(text ?? "").replace(/[&<>"']/g, escapeCharacter);
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -59,6 +60,9 @@ export class HudAndStaticView {
   private root: HTMLElement;
   private lightboxIndex = 0;
   private lightbox: HTMLDialogElement;
+  private placard: HTMLElement;
+  private placardIndex = -1;
+  private toastTimer?: ReturnType<typeof setTimeout>;
 
   constructor(
     private photos: Photo[],
@@ -124,6 +128,9 @@ export class HudAndStaticView {
 
     this.viewport = this.root.querySelector("#viewport")!;
     this.lightbox = this.root.querySelector(".lightbox")!;
+    this.placard = this.root.querySelector(".placard")!;
+    this.placard.addEventListener("click", this.onPlacardAction);
+    this.lightbox.addEventListener("click", this.onPlacardAction);
 
     this.root.querySelector(".hud-brand")!.addEventListener("click", () => {
       if (this.mode === "index") {
@@ -220,7 +227,8 @@ export class HudAndStaticView {
     const el = this.root.querySelector<HTMLElement>(".toast")!;
     el.textContent = message;
     el.hidden = false;
-    setTimeout(() => {
+    clearTimeout(this.toastTimer);
+    this.toastTimer = setTimeout(() => {
       el.hidden = true;
     }, 6500);
   }
@@ -248,25 +256,34 @@ export class HudAndStaticView {
       String(state.index < 0 && !state.inspecting && !state.roaming),
     );
 
-    const placard = this.root.querySelector<HTMLElement>(".placard")!;
-    placard.hidden = !isInspecting;
-
-    if (isInspecting) {
-      const photo = this.photos[state.index];
-      placard.innerHTML = this.renderPlacardMarkup(photo, state.index);
-      placard
-        .querySelector<HTMLButtonElement>('[data-action="prev"]')!
-        .addEventListener("click", () => this.actions.step(-1));
-      placard
-        .querySelector<HTMLButtonElement>('[data-action="next"]')!
-        .addEventListener("click", () => this.actions.step(1));
-      placard
-        .querySelector<HTMLButtonElement>('[data-action="esc"]')!
-        .addEventListener("click", () => this.actions.exit());
+    this.placard.hidden = !isInspecting;
+    if (isInspecting && this.placardIndex !== state.index) {
+      this.placardIndex = state.index;
+      this.placard.innerHTML = this.renderPlacardMarkup(
+        this.photos[state.index],
+        state.index,
+      );
     }
 
     document.body.classList.toggle("inspecting", isInspecting);
   }
+
+  private onPlacardAction = (event: MouseEvent) => {
+    if (!(event.target instanceof Element)) return;
+    const action = event.target.closest<HTMLButtonElement>(
+      "button[data-action]",
+    )?.dataset.action;
+    if (!action) return;
+    if (event.currentTarget === this.lightbox) {
+      if (action === "prev") this.openLightbox(this.lightboxIndex - 1);
+      else if (action === "next") this.openLightbox(this.lightboxIndex + 1);
+      else if (action === "esc") this.lightbox.close();
+    } else {
+      if (action === "prev") this.actions.step(-1);
+      else if (action === "next") this.actions.step(1);
+      else if (action === "esc") this.actions.exit();
+    }
+  };
 
   private renderPlacardMarkup(photo: Photo, index: number) {
     return `
@@ -285,6 +302,11 @@ export class HudAndStaticView {
   }
 
   private openLightbox(index: number) {
+    const focused = document.activeElement;
+    const focusedAction =
+      focused instanceof HTMLElement && this.lightbox.contains(focused)
+        ? focused.dataset.action
+        : undefined;
     this.lightboxIndex = (index + this.photos.length) % this.photos.length;
     const photo = this.photos[this.lightboxIndex];
     this.root.querySelector(".hud-counter")!.textContent =
@@ -297,19 +319,11 @@ export class HudAndStaticView {
       photo,
       this.lightboxIndex,
     );
-    placardContainer
-      .querySelector<HTMLButtonElement>('[data-action="prev"]')!
-      .addEventListener("click", () =>
-        this.openLightbox(this.lightboxIndex - 1),
-      );
-    placardContainer
-      .querySelector<HTMLButtonElement>('[data-action="next"]')!
-      .addEventListener("click", () =>
-        this.openLightbox(this.lightboxIndex + 1),
-      );
-    placardContainer
-      .querySelector<HTMLButtonElement>('[data-action="esc"]')!
-      .addEventListener("click", () => this.lightbox.close());
     if (!this.lightbox.open) this.lightbox.showModal();
+    if (focusedAction) {
+      this.lightbox
+        .querySelector<HTMLButtonElement>(`[data-action="${focusedAction}"]`)
+        ?.focus({ preventScroll: true });
+    }
   }
 }

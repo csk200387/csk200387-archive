@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { mergeStaticGeometry } from "./StaticGeometry";
 
 function leafGeometry(length: number, width: number) {
   const vertices: number[] = [],
@@ -53,15 +54,8 @@ function foliageMaterial() {
   };
   return m;
 }
-export function buildPlant(
-  scene: THREE.Scene,
-  x: number,
-  z: number,
-  scale = 1,
-) {
+function plantTemplate() {
   const group = new THREE.Group();
-  group.position.set(x, 0, z);
-  group.scale.setScalar(scale);
   const potMat = new THREE.MeshStandardMaterial({
     color: "#cbc6b8",
     roughness: 0.94,
@@ -100,6 +94,8 @@ export function buildPlant(
     color: "#65664b",
     roughness: 0.9,
   });
+  const stems: THREE.Mesh[] = [];
+  const leaves: THREE.Mesh[] = [];
   for (let i = 0; i < 18; i++) {
     const angle = i * 2.39996,
       height = 0.85 + (i % 6) * 0.19;
@@ -119,7 +115,7 @@ export function buildPlant(
       stemMat,
     );
     stem.castShadow = true;
-    group.add(stem);
+    stems.push(stem);
     const leaf = new THREE.Mesh(
       leafGeometry(0.48 + (i % 3) * 0.12, 0.16 + (i % 4) * 0.018),
       leafMat,
@@ -128,22 +124,43 @@ export function buildPlant(
     leaf.rotation.set(0.65 + (i % 4) * 0.2, angle, -0.35);
     leaf.castShadow = true;
     leaf.receiveShadow = true;
-    group.add(leaf);
+    leaves.push(leaf);
   }
+  const stemsMesh = new THREE.Mesh(mergeStaticGeometry(stems), stemMat);
+  stemsMesh.castShadow = true;
+  const leavesMesh = new THREE.Mesh(mergeStaticGeometry(leaves), leafMat);
+  leavesMesh.castShadow = leavesMesh.receiveShadow = true;
+  group.add(stemsMesh, leavesMesh);
+  for (const mesh of [...stems, ...leaves]) mesh.geometry.dispose();
   const shadow = new THREE.Mesh(
     new THREE.PlaneGeometry(2.2, 2.2),
     new THREE.ShaderMaterial({
       transparent: true,
       depthWrite: false,
       vertexShader:
-        "varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}",
+        "varying mediump vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}",
       fragmentShader:
-        "varying vec2 vUv;void main(){float a=exp(-dot(vUv-.5,vUv-.5)*20.)*.23;gl_FragColor=vec4(.18,.18,.12,a);}",
+        "precision mediump float;varying mediump vec2 vUv;void main(){float a=exp(-dot(vUv-.5,vUv-.5)*20.)*.23;gl_FragColor=vec4(.18,.18,.12,a);}",
     }),
   );
   shadow.rotation.x = -Math.PI / 2;
   shadow.position.y = 0.035;
   group.add(shadow);
-  scene.add(group);
   return group;
+}
+
+/** One set of pot, stem and foliage resources per gallery, shared by all plants. */
+export function buildPlants(scene: THREE.Scene, roomLength: number) {
+  const template = plantTemplate();
+  const placements = [
+    [-4.6, 3.6, 1.1],
+    [-4.65, -5.8, 1.15],
+    [-4.7, 9 - roomLength, 1.25],
+  ];
+  for (const [x, z, scale] of placements) {
+    const plant = template.clone();
+    plant.position.set(x, 0, z);
+    plant.scale.setScalar(scale);
+    scene.add(plant);
+  }
 }

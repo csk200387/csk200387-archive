@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { mergeStaticGeometry } from "./StaticGeometry";
 import { Reflector } from "three/addons/objects/Reflector.js";
 
 export const ROOM_WIDTH = 12;
@@ -90,6 +91,7 @@ function marbleTextures() {
   return { color, rough };
 }
 
+// Keep the procedural plaster hash highp: mediump quantizes its fine grain.
 function architecturalMaterial(length: number) {
   const material = new THREE.MeshStandardMaterial({
     color: "#efede3",
@@ -125,6 +127,8 @@ export class RoomBuilder {
   readonly group = new THREE.Group();
   readonly length: number;
   readonly reflection: Reflector;
+  private readonly boxGeometry = new THREE.BoxGeometry(1, 1, 1);
+  private benchTemplate?: THREE.Group;
   constructor(scene: THREE.Scene, count: number) {
     this.length = roomLength(count);
     const centerZ = 7 - this.length / 2;
@@ -147,18 +151,24 @@ export class RoomBuilder {
     floor.position.z = centerZ;
     floor.receiveShadow = true;
     this.group.add(floor);
-    this.reflection = new Reflector(new THREE.PlaneGeometry(12, this.length), {
+    this.reflection = new Reflector(floor.geometry, {
       color: 0xc9c9c4,
-      textureWidth: 768,
-      textureHeight: 768,
+      textureWidth: 512,
+      textureHeight: 512,
+      multisample: 0,
       clipBias: 0.003,
     });
     this.reflection.rotation.x = -Math.PI / 2;
     this.reflection.position.set(0, 0.012, centerZ);
     const reflectiveMaterial = this.reflection.material as THREE.ShaderMaterial;
+    // Keep projected UVs high precision; lower precision can shimmer along the far floor.
     reflectiveMaterial.transparent = true;
     reflectiveMaterial.depthWrite = false;
     reflectiveMaterial.fragmentShader = reflectiveMaterial.fragmentShader
+      .replace(
+        "return( base < 0.5 ? ( 2.0 * base * blend ) : ( 1.0 - 2.0 * ( 1.0 - base ) * ( 1.0 - blend ) ) );",
+        "return mix(2.0 * base * blend, 1.0 - 2.0 * (1.0 - base) * (1.0 - blend), step(0.5, base));",
+      )
       .replace(
         "vec4 base = texture2DProj( tDiffuse, vUv );",
         `
@@ -185,7 +195,9 @@ export class RoomBuilder {
       z: number,
       mat: THREE.Material = wallMaterial,
     ) => {
-      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+      const mesh = new THREE.Mesh(this.boxGeometry, mat);
+      mesh.scale.set(w, h, d);
+      mesh.frustumCulled = true;
       mesh.position.set(x, y, z);
       mesh.receiveShadow = true;
       mesh.castShadow = true;
@@ -240,8 +252,13 @@ export class RoomBuilder {
     // Long ceiling openings, cross beams, and recessed skylight glazing.
     box(3.8, 0.22, this.length, -4.1, 5.6, centerZ);
     box(3.8, 0.22, this.length, 4.1, 5.6, centerZ);
+    const crossBeams: THREE.Mesh[] = [];
     for (let z = 6; z > 7 - this.length; z -= 4.8)
-      box(4.4, 0.3, 0.23, 0, 5.6, z);
+      crossBeams.push(box(4.4, 0.3, 0.23, 0, 5.6, z));
+    const beams = new THREE.Mesh(mergeStaticGeometry(crossBeams), wallMaterial);
+    beams.castShadow = beams.receiveShadow = true;
+    this.group.remove(...crossBeams);
+    this.group.add(beams);
     const glass = new THREE.MeshBasicMaterial({
       color: "#f4e8cc",
       side: THREE.DoubleSide,
@@ -267,18 +284,18 @@ export class RoomBuilder {
       transparent: true,
       opacity: 0.14,
     });
+    const seamGeometry = new THREE.PlaneGeometry(1, 1);
     for (let z = 5; z > 7 - this.length; z -= 3.2) {
-      const seam = new THREE.Mesh(new THREE.PlaneGeometry(12, 0.008), seamMat);
+      const seam = new THREE.Mesh(seamGeometry, seamMat);
+      seam.scale.set(12, 0.008, 1);
       seam.rotation.x = -Math.PI / 2;
       seam.position.set(0, 0.016, z);
       this.group.add(seam);
     }
     for (const x of [-3, 0, 3]) {
-      const seam = new THREE.Mesh(
-        new THREE.PlaneGeometry(0.008, this.length),
-        seamMat,
-      );
+      const seam = new THREE.Mesh(seamGeometry, seamMat);
       seam.rotation.x = -Math.PI / 2;
+      seam.scale.set(0.008, this.length, 1);
       seam.position.set(x, 0.016, centerZ);
       this.group.add(seam);
     }
@@ -291,6 +308,12 @@ export class RoomBuilder {
     floorColor: THREE.CanvasTexture,
     floorRough: THREE.CanvasTexture,
   ) {
+    if (this.benchTemplate) {
+      const bench = this.benchTemplate.clone();
+      bench.position.set(x, 0, z);
+      this.group.add(bench);
+      return;
+    }
     const benchColor = floorColor.clone();
     benchColor.repeat.set(1.2, 2.2);
     benchColor.needsUpdate = true;
@@ -312,26 +335,29 @@ export class RoomBuilder {
     benchGroup.position.set(x, 0, z);
 
     // Top monolithic marble slab
-    const seat = new THREE.Mesh(
-      new THREE.BoxGeometry(1.02, 0.12, 3.15),
-      benchMat,
-    );
+    const seat = new THREE.Mesh(this.boxGeometry, benchMat);
+    seat.scale.set(1.02, 0.12, 3.15);
     seat.position.set(0, 0.42, 0);
     seat.castShadow = true;
     seat.receiveShadow = true;
     benchGroup.add(seat);
+    const pieces: THREE.Mesh[] = [seat];
 
     // Two recessed architectural marble plinth legs
     for (const zOffset of [-1.05, 1.05]) {
-      const leg = new THREE.Mesh(
-        new THREE.BoxGeometry(0.74, 0.36, 0.38),
-        benchMat,
-      );
+      const leg = new THREE.Mesh(this.boxGeometry, benchMat);
+      leg.scale.set(0.74, 0.36, 0.38);
       leg.position.set(0, 0.18, zOffset);
       leg.castShadow = true;
       leg.receiveShadow = true;
       benchGroup.add(leg);
+      pieces.push(leg);
     }
+
+    const marble = new THREE.Mesh(mergeStaticGeometry(pieces), benchMat);
+    marble.castShadow = marble.receiveShadow = true;
+    benchGroup.clear();
+    benchGroup.add(marble);
 
     // Soft ambient contact shadow beneath the bench
     const shadow = new THREE.Mesh(
@@ -340,15 +366,16 @@ export class RoomBuilder {
         transparent: true,
         depthWrite: false,
         vertexShader:
-          "varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}",
+          "varying mediump vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}",
         fragmentShader:
-          "varying vec2 vUv;void main(){vec2 p=abs(vUv-.5);float a=(1.-smoothstep(.22,.5,p.x))*(1.-smoothstep(.3,.5,p.y));gl_FragColor=vec4(.16,.15,.12,a*.28);}",
+          "precision mediump float;varying mediump vec2 vUv;void main(){vec2 p=abs(vUv-.5);float a=(1.-smoothstep(.22,.5,p.x))*(1.-smoothstep(.3,.5,p.y));gl_FragColor=vec4(.16,.15,.12,a*.28);}",
       }),
     );
     shadow.rotation.x = -Math.PI / 2;
     shadow.position.y = 0.018;
     benchGroup.add(shadow);
 
+    this.benchTemplate = benchGroup;
     this.group.add(benchGroup);
   }
 }

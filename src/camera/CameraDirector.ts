@@ -1,5 +1,4 @@
 import * as THREE from "three";
-import gsap from "gsap";
 import type { FrameManager } from "../scene/FrameManager";
 import { ARCHITECTURAL_OBSTACLES } from "../scene/RoomBuilder";
 
@@ -44,7 +43,26 @@ export class CameraDirector {
   private drift = new THREE.Vector2();
   private keys = new Set<string>();
   private velocity = new THREE.Vector3();
-  private tween?: gsap.core.Tween;
+  private readonly forward = new THREE.Vector3();
+  private readonly right = new THREE.Vector3();
+  private readonly movement = new THREE.Vector3();
+  private readonly lookTarget = new THREE.Vector3();
+  private readonly zeroPointer = new THREE.Vector2();
+  private readonly curve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(),
+    new THREE.Vector3(),
+    new THREE.Vector3(),
+    new THREE.Vector3(),
+  ]);
+  private readonly transitionTarget = new THREE.Vector3();
+  private readonly transitionStartTarget = new THREE.Vector3();
+  private transitionElapsed = 0;
+  private transitioning = false;
+  private readonly planterPositions: readonly (readonly [number, number])[];
+  private canvasLeft = 0;
+  private canvasTop = 0;
+  private canvasWidth = 1;
+  private canvasHeight = 1;
   private raycaster = new THREE.Raycaster();
   private enabled = true;
   private dragging = false;
@@ -66,6 +84,11 @@ export class CameraDirector {
     private length: number,
     private onChange: (state: CameraState) => void,
   ) {
+    this.planterPositions = [
+      [-4.6, 3.6],
+      [-4.65, -5.8],
+      [-4.7, 9 - length],
+    ];
     const options = { signal: this.abort.signal };
     canvas.addEventListener("pointermove", this.onPointerMove, options);
     canvas.addEventListener("pointerdown", this.onPointerDown, options);
@@ -93,7 +116,7 @@ export class CameraDirector {
   }
 
   private notify() {
-    this.onChange({ ...this.state });
+    this.onChange(this.state);
   }
 
   setEnabled(enabled: boolean) {
@@ -101,8 +124,6 @@ export class CameraDirector {
     this.keys.clear();
     this.velocity.set(0, 0, 0);
     this.dragging = false;
-    if (enabled) this.tween?.resume();
-    else this.tween?.pause();
   }
 
   go(index: number, inspect = false) {
@@ -133,7 +154,7 @@ export class CameraDirector {
             (vh - topOccupied - bottomOccupied) / vh,
           );
           const availHoriz = Math.max(0.78, (vw - 32) / vw);
-          const distV = (frame.height / 2) / (halfFovTan * availVert * 0.88);
+          const distV = frame.height / 2 / (halfFovTan * availVert * 0.88);
           const distH =
             frame.width /
             (2 * this.camera.aspect) /
@@ -184,20 +205,16 @@ export class CameraDirector {
     }
   }
 
-  overview() {
-    this.go(-1, false);
-  }
-
   setRoaming(roaming: boolean) {
     if (!roaming) {
       this.go(this.state.index, false);
       return;
     }
-    this.tween?.kill();
+    this.transitioning = false;
     this.state.inspecting = false;
     this.state.roaming = true;
-    const direction = this.baseTarget
-      .clone()
+    const direction = this.forward
+      .copy(this.baseTarget)
       .sub(this.basePosition)
       .normalize();
     this.yaw = Math.atan2(-direction.x, -direction.z);
@@ -206,35 +223,21 @@ export class CameraDirector {
   }
 
   private transition(destination: THREE.Vector3, target: THREE.Vector3) {
-    this.tween?.kill();
-    const start = this.basePosition.clone();
-    const startTarget = this.baseTarget.clone();
-    const delta = destination.clone().sub(start);
-    const firstBend = start.clone().addScaledVector(delta, 0.33);
-    const secondBend = start.clone().addScaledVector(delta, 0.67);
+    this.transitioning = false;
+    const [start, firstBend, secondBend, end] = this.curve.points;
+    start.copy(this.basePosition);
+    end.copy(destination);
+    this.transitionStartTarget.copy(this.baseTarget);
+    this.transitionTarget.copy(target);
+    const delta = this.movement.subVectors(destination, start);
+    firstBend.copy(start).addScaledVector(delta, 0.33);
+    secondBend.copy(start).addScaledVector(delta, 0.67);
     if (delta.length() > 2.5) {
       avoidObstacles(firstBend);
       avoidObstacles(secondBend);
     }
-    const curve = new THREE.CatmullRomCurve3([
-      start,
-      firstBend,
-      secondBend,
-      destination,
-    ]);
-    const progress = { value: 0 };
-    this.tween = gsap.to(progress, {
-      value: 1,
-      duration: this.reduced ? 0.01 : 1.35,
-      ease: "power2.inOut",
-      onUpdate: () => {
-        this.basePosition.copy(curve.getPoint(progress.value));
-        this.baseTarget.lerpVectors(startTarget, target, progress.value);
-      },
-      onComplete: () => {
-        this.tween = undefined;
-      },
-    });
+    this.transitionElapsed = 0;
+    this.transitioning = true;
   }
 
   private onKeyDown = (event: KeyboardEvent) => {
@@ -302,15 +305,14 @@ export class CameraDirector {
 
   private onPointerMove = (e: PointerEvent) => {
     if (!this.enabled) return;
-    const rect = this.canvas.getBoundingClientRect();
     this.pointer.set(
-      ((e.clientX - rect.left) / rect.width) * 2 - 1,
-      (-(e.clientY - rect.top) / rect.height) * 2 + 1,
+      ((e.clientX - this.canvasLeft) / this.canvasWidth) * 2 - 1,
+      (-(e.clientY - this.canvasTop) / this.canvasHeight) * 2 + 1,
     );
     if (this.dragging) {
       this.dragDistance = Math.max(
         this.dragDistance,
-        this.down.distanceTo(new THREE.Vector2(e.clientX, e.clientY)),
+        Math.hypot(e.clientX - this.down.x, e.clientY - this.down.y),
       );
       if (!this.state.inspecting && this.dragDistance > 6) {
         if (!this.state.roaming) {
@@ -329,7 +331,7 @@ export class CameraDirector {
     this.canvas.style.cursor =
       !this.state.inspecting && this.dragging
         ? "grabbing"
-        : this.raycaster.intersectObjects(this.frames.hitTargets, false).length
+        : this.frames.pick(this.raycaster.ray) >= 0
           ? "pointer"
           : this.state.inspecting
             ? "zoom-out"
@@ -342,18 +344,13 @@ export class CameraDirector {
     if (this.canvas.hasPointerCapture(e.pointerId))
       this.canvas.releasePointerCapture(e.pointerId);
     if (this.dragDistance > 8) return;
-    const rect = this.canvas.getBoundingClientRect();
     this.pointer.set(
-      ((e.clientX - rect.left) / rect.width) * 2 - 1,
-      (-(e.clientY - rect.top) / rect.height) * 2 + 1,
+      ((e.clientX - this.canvasLeft) / this.canvasWidth) * 2 - 1,
+      (-(e.clientY - this.canvasTop) / this.canvasHeight) * 2 + 1,
     );
     this.raycaster.setFromCamera(this.pointer, this.camera);
-    const hit = this.raycaster.intersectObjects(
-      this.frames.hitTargets,
-      false,
-    )[0];
-    if (hit) {
-      const hitIndex = hit.object.userData.index as number;
+    const hitIndex = this.frames.pick(this.raycaster.ray);
+    if (hitIndex >= 0) {
       if (this.state.inspecting && this.state.index === hitIndex) {
         return;
       }
@@ -363,20 +360,35 @@ export class CameraDirector {
     }
   };
 
-  update(dt: number) {
+  update(dt: number, transitionDt = dt) {
     if (!this.enabled) return;
+    if (this.transitioning) {
+      this.transitionElapsed += transitionDt;
+      const progress = Math.min(
+        1,
+        this.transitionElapsed / (this.reduced ? 0.01 : 1.35),
+      );
+      // GSAP power2.inOut is cubic; retain the original timing and spline.
+      const eased =
+        progress < 0.5
+          ? 4 * progress * progress * progress
+          : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+      this.curve.getPoint(eased, this.basePosition);
+      this.baseTarget.lerpVectors(
+        this.transitionStartTarget,
+        this.transitionTarget,
+        eased,
+      );
+      if (progress === 1) this.transitioning = false;
+    }
     if (this.state.roaming) {
-      const forward = new THREE.Vector3(
+      const forward = this.forward.set(
         -Math.sin(this.yaw),
         0,
         -Math.cos(this.yaw),
       );
-      const right = new THREE.Vector3(
-        Math.cos(this.yaw),
-        0,
-        -Math.sin(this.yaw),
-      );
-      const movement = new THREE.Vector3();
+      const right = this.right.set(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
+      const movement = this.movement.set(0, 0, 0);
       if (this.keys.has("w")) movement.add(forward);
       if (this.keys.has("s")) movement.sub(forward);
       if (this.keys.has("d")) movement.add(right);
@@ -398,7 +410,8 @@ export class CameraDirector {
 
       // Resolve collisions with freestanding baffles and central marble bench
       const radius = 0.48;
-      for (const obs of ARCHITECTURAL_OBSTACLES) {
+      for (let i = 0; i < ARCHITECTURAL_OBSTACLES.length; i++) {
+        const obs = ARCHITECTURAL_OBSTACLES[i];
         const clampedX = THREE.MathUtils.clamp(
           this.basePosition.x,
           obs.minX,
@@ -420,25 +433,20 @@ export class CameraDirector {
       }
 
       // Keep clearance around the ceramic planters
-      for (const [x, z] of [
-        [-4.6, 3.6],
-        [-4.65, -5.8],
-        [-4.7, 9 - this.length],
-      ]) {
-        const d = new THREE.Vector2(
-          this.basePosition.x - x,
-          this.basePosition.z - z,
-        );
-        if (d.length() < 0.9) {
-          d.setLength(0.9);
-          this.basePosition.x = x + d.x;
-          this.basePosition.z = z + d.y;
+      for (let i = 0; i < this.planterPositions.length; i++) {
+        const planter = this.planterPositions[i];
+        const dx = this.basePosition.x - planter[0];
+        const dz = this.basePosition.z - planter[1];
+        const distance = Math.hypot(dx, dz);
+        if (distance > 0 && distance < 0.9) {
+          this.basePosition.x = planter[0] + (dx * 0.9) / distance;
+          this.basePosition.z = planter[1] + (dz * 0.9) / distance;
         }
       }
       this.baseTarget
         .copy(this.basePosition)
         .add(
-          new THREE.Vector3(
+          this.lookTarget.set(
             -Math.sin(this.yaw) * Math.cos(this.pitch),
             Math.sin(this.pitch),
             -Math.cos(this.yaw) * Math.cos(this.pitch),
@@ -446,20 +454,19 @@ export class CameraDirector {
         );
     }
     this.drift.lerp(
-      this.reduced || this.state.inspecting
-        ? new THREE.Vector2()
-        : this.pointer,
+      this.reduced || this.state.inspecting ? this.zeroPointer : this.pointer,
       1 - Math.exp(-dt * (this.state.inspecting ? 8 : 3)),
     );
     this.camera.position.copy(this.basePosition);
-    const forward = this.baseTarget.clone().sub(this.basePosition).normalize();
-    const right = new THREE.Vector3()
-      .crossVectors(forward, this.camera.up)
+    const forward = this.forward
+      .copy(this.baseTarget)
+      .sub(this.basePosition)
       .normalize();
+    const right = this.right.crossVectors(forward, this.camera.up).normalize();
     this.camera.position.addScaledVector(right, this.drift.x * 0.035);
     this.camera.position.y += this.drift.y * 0.02;
-    const target = this.baseTarget
-      .clone()
+    const target = this.lookTarget
+      .copy(this.baseTarget)
       .addScaledVector(
         right,
         this.drift.x * (this.state.inspecting ? 0.04 : 0.14),
@@ -469,11 +476,16 @@ export class CameraDirector {
   }
 
   resize() {
+    const rect = this.canvas.getBoundingClientRect();
+    this.canvasLeft = rect.left;
+    this.canvasTop = rect.top;
+    this.canvasWidth = rect.width || 1;
+    this.canvasHeight = rect.height || 1;
     if (this.state.inspecting) this.go(this.state.index, true);
   }
 
   dispose() {
     this.abort.abort();
-    this.tween?.kill();
+    this.transitioning = false;
   }
 }

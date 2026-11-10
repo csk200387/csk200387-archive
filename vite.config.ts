@@ -12,7 +12,6 @@ export default defineConfig({
           )
             return "three-renderer";
           if (id.includes("three/build/three.core")) return "three-core";
-          if (id.includes("node_modules/gsap")) return "camera-motion";
         },
       },
     },

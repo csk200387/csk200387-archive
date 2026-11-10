@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { mergeStaticGeometry } from "./StaticGeometry";
 import { photoUrl, type Photo } from "../types";
 
 export interface FrameEntry {
@@ -164,7 +165,7 @@ function slotForIndex(index: number): MountSlot {
 }
 
 const vertex =
-  "varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}";
+  "varying mediump vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}";
 
 function aura(color: THREE.Color, opacity: number, square = false) {
   return new THREE.ShaderMaterial({
@@ -177,7 +178,8 @@ function aura(color: THREE.Color, opacity: number, square = false) {
       strength: { value: opacity },
     },
     vertexShader: vertex,
-    fragmentShader: `varying vec2 vUv;uniform vec3 tint;uniform float strength;
+    fragmentShader: `precision mediump float;
+varying mediump vec2 vUv;uniform vec3 tint;uniform float strength;
     void main(){ vec2 p=abs(vUv-.5);float d=${square ? "pow(pow(p.x,6.)+pow(p.y,6.),1./6.)" : "length(p)"};
     float a=1.-smoothstep(.20,.5,d);gl_FragColor=vec4(tint,a*strength); }`,
   });
@@ -190,7 +192,8 @@ function dropShadowMaterial() {
     polygonOffset: true,
     polygonOffsetFactor: -2,
     vertexShader: vertex,
-    fragmentShader: `varying vec2 vUv;
+    fragmentShader: `precision mediump float;
+varying mediump vec2 vUv;
     void main(){
       vec2 p = abs(vUv - 0.5);
       float sx = 1.0 - smoothstep(0.39, 0.5, p.x);
@@ -241,8 +244,19 @@ function createHighAcuityTexture(
 
 export class FrameManager {
   readonly frames: FrameEntry[] = [];
-  readonly hitTargets: THREE.Object3D[] = [];
-  readonly ready: Promise<unknown[]>;
+  readonly hitTargets: THREE.Mesh[] = [];
+  private readonly targets: {
+    index: number;
+    inverse: THREE.Matrix4;
+    bounds: THREE.Box3;
+    plane: boolean;
+  }[] = [];
+  private readonly localRay = new THREE.Ray();
+  private readonly localHit = new THREE.Vector3();
+  private readonly worldHit = new THREE.Vector3();
+  private readonly plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+  private disposed = false;
+  readonly ready: Promise<void[]>;
 
   constructor(
     scene: THREE.Scene,
@@ -251,7 +265,7 @@ export class FrameManager {
     maxTextureSize = 4096,
   ) {
     const imageLoader = new THREE.ImageLoader();
-    const loading: Promise<unknown>[] = [];
+    const loading: Promise<void>[] = [];
 
     const microBronze = new THREE.MeshStandardMaterial({
       color: "#2a2722",
@@ -264,6 +278,10 @@ export class FrameManager {
       metalness: 0.3,
     });
 
+    const planeGeometry = new THREE.PlaneGeometry(1, 1);
+    const boxGeometry = new THREE.BoxGeometry(1, 1, 1);
+    const dropShadow = dropShadowMaterial();
+    const bezels = new Map<string, THREE.BufferGeometry>();
     photos.forEach((photo, index) => {
       const slot = slotForIndex(index);
       const maxWidth = slot.baffle ? 1.78 : 2.32;
@@ -288,35 +306,27 @@ export class FrameManager {
         ]),
         THREE.SRGBColorSpace,
       );
-      const bleed = new THREE.Mesh(
-        new THREE.PlaneGeometry(width + 1.45, height + 1.45),
-        aura(dominant, 0.16, true),
-      );
+      const bleed = new THREE.Mesh(planeGeometry, aura(dominant, 0.16, true));
+      bleed.scale.set(width + 1.45, height + 1.45, 1);
       bleed.position.z = 0.003;
       group.add(bleed);
 
       // Realistic floating gallery-mount drop shadow against the wall
-      const shadow = new THREE.Mesh(
-        new THREE.PlaneGeometry(width + 0.16, height + 0.16),
-        dropShadowMaterial(),
-      );
+      const shadow = new THREE.Mesh(planeGeometry, dropShadow);
+      shadow.scale.set(width + 0.16, height + 0.16, 1);
       shadow.position.set(0.008, -0.026, 0.006);
       group.add(shadow);
 
       // Recessed gallery sub-frame (creates the floating shadow gap behind the print)
-      const subframe = new THREE.Mesh(
-        new THREE.BoxGeometry(width - 0.09, height - 0.09, 0.026),
-        recessedMountMat,
-      );
+      const subframe = new THREE.Mesh(boxGeometry, recessedMountMat);
+      subframe.scale.set(width - 0.09, height - 0.09, 0.026);
       subframe.position.z = 0.015;
       subframe.castShadow = true;
       group.add(subframe);
 
       // Thin rigid aluminum Dibond backing plate (exact size of the print, no white mat)
-      const plate = new THREE.Mesh(
-        new THREE.BoxGeometry(width, height, 0.008),
-        recessedMountMat,
-      );
+      const plate = new THREE.Mesh(boxGeometry, recessedMountMat);
+      plate.scale.set(width, height, 0.008);
       plate.position.z = 0.032;
       plate.castShadow = true;
       plate.receiveShadow = true;
@@ -327,26 +337,31 @@ export class FrameManager {
       // Ultra-thin (6mm) dark bronze/anodized aluminum micro-frame bezel flush around print
       const bezelThickness = 0.006;
       const bezelDepth = 0.014;
-      for (const y of [-1, 1]) {
-        const rail = new THREE.Mesh(
-          new THREE.BoxGeometry(
+      const bezelKey = `${width}:${height}`;
+      let bezel = bezels.get(bezelKey);
+      if (!bezel) {
+        const rails: THREE.Mesh[] = [];
+        for (const y of [-1, 1]) {
+          const rail = new THREE.Mesh(boxGeometry, microBronze);
+          rail.scale.set(
             width + bezelThickness * 2,
             bezelThickness,
             bezelDepth,
-          ),
-          microBronze,
-        );
-        rail.position.set(0, y * (height / 2 + bezelThickness / 2), 0.032);
-        group.add(rail);
+          );
+          rail.position.set(0, y * (height / 2 + bezelThickness / 2), 0.032);
+          rails.push(rail);
+        }
+        for (const x of [-1, 1]) {
+          const rail = new THREE.Mesh(boxGeometry, microBronze);
+          rails.push(rail);
+          rail.scale.set(bezelThickness, height, bezelDepth);
+          rail.position.set(x * (width / 2 + bezelThickness / 2), 0, 0.032);
+        }
+
+        bezel = mergeStaticGeometry(rails);
+        bezels.set(bezelKey, bezel);
       }
-      for (const x of [-1, 1]) {
-        const rail = new THREE.Mesh(
-          new THREE.BoxGeometry(bezelThickness, height, bezelDepth),
-          microBronze,
-        );
-        group.add(rail);
-        rail.position.set(x * (width / 2 + bezelThickness / 2), 0, 0.032);
-      }
+      group.add(new THREE.Mesh(bezel, microBronze));
 
       // Color-accurate, fog-exempt, high-acuity photograph print material
       const mipBiasUniform = { value: -0.45 };
@@ -368,10 +383,8 @@ export class FrameManager {
           );
       };
 
-      const print = new THREE.Mesh(
-        new THREE.PlaneGeometry(width, height),
-        printMat,
-      );
+      const print = new THREE.Mesh(planeGeometry, printMat);
+      print.scale.set(width, height, 1);
       print.position.z = 0.038;
       print.userData = { kind: "photo", index };
       group.add(print);
@@ -379,12 +392,15 @@ export class FrameManager {
 
       loading.push(
         imageLoader.loadAsync(photoUrl(photo)).then((image) => {
+          // Pending image requests may settle after teardown or a failed load.
+          if (this.disposed) return;
           const texture = createHighAcuityTexture(
             image,
             maxAnisotropy,
             maxTextureSize,
           );
           printMat.color.set("#ffffff");
+          printMat.map?.dispose();
           printMat.map = texture;
           printMat.needsUpdate = true;
         }),
@@ -394,10 +410,8 @@ export class FrameManager {
       const floorBleedPos = slot.position
         .clone()
         .addScaledVector(slot.normal, 1.15);
-      const floorBleed = new THREE.Mesh(
-        new THREE.PlaneGeometry(2.8, 2.8),
-        aura(dominant, 0.11),
-      );
+      const floorBleed = new THREE.Mesh(planeGeometry, aura(dominant, 0.11));
+      floorBleed.scale.set(2.8, 2.8, 1);
       floorBleed.rotation.x = -Math.PI / 2;
       floorBleed.position.set(floorBleedPos.x, 0.028, floorBleedPos.z);
       scene.add(floorBleed);
@@ -417,13 +431,61 @@ export class FrameManager {
       });
     });
 
+    scene.updateMatrixWorld(true);
+    for (const mesh of this.hitTargets) {
+      mesh.geometry.computeBoundingBox();
+      const index: unknown = mesh.userData.index;
+      if (typeof index !== "number")
+        throw new Error("Missing photo hit target index.");
+      this.targets.push({
+        index,
+        inverse: mesh.matrixWorld.clone().invert(),
+        bounds: mesh.geometry.boundingBox!,
+        plane: mesh.geometry === planeGeometry,
+      });
+    }
     this.ready = Promise.all(loading);
+  }
+
+  /** Exact plane/box hits for static prints, without Raycaster's hit-object allocations. */
+  pick(ray: THREE.Ray): number {
+    let nearest = Infinity;
+    let index = -1;
+    for (let i = 0; i < this.targets.length; i++) {
+      const target = this.targets[i];
+      this.localRay.copy(ray).applyMatrix4(target.inverse);
+      if (target.plane) {
+        if (
+          this.localRay.direction.z >= 0 ||
+          !this.localRay.intersectPlane(this.plane, this.localHit) ||
+          Math.abs(this.localHit.x) > 0.5 ||
+          Math.abs(this.localHit.y) > 0.5
+        )
+          continue;
+      } else if (!this.localRay.intersectBox(target.bounds, this.localHit))
+        continue;
+      this.worldHit
+        .copy(this.localHit)
+        .applyMatrix4(this.hitTargets[i].matrixWorld);
+      const distance = ray.origin.distanceToSquared(this.worldHit);
+      if (distance < nearest) {
+        nearest = distance;
+        index = target.index;
+      }
+    }
+    return index;
+  }
+
+  dispose() {
+    this.disposed = true;
+    this.targets.length = 0;
+    this.hitTargets.length = 0;
+    this.frames.length = 0;
   }
 
   setFocused(focusedIndex: number) {
     for (const frame of this.frames) {
-      frame.mipBiasUniform.value =
-        frame.index === focusedIndex ? -0.85 : -0.45;
+      frame.mipBiasUniform.value = frame.index === focusedIndex ? -0.85 : -0.45;
     }
   }
 }

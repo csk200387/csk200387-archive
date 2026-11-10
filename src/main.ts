@@ -34,7 +34,6 @@ async function boot() {
     go: (index, inspect) => gallery?.director.go(index, inspect),
     step: (direction) => gallery?.director.step(direction),
     exit: () => gallery?.director.exit(),
-    roam: (enabled) => gallery?.director.setRoaming(enabled),
   });
   async function setMode(mode: "3d" | "index", userInitiated = false) {
     desiredMode = mode;
@@ -59,19 +58,27 @@ async function boot() {
           photos,
           (state) => ui.update(state),
           () => {
+            gallery?.dispose();
+            gallery = undefined;
+            creating = undefined;
             void setMode("index");
             ui.toast(
               "The 3D room is unavailable. The full collection is here in the index.",
             );
           },
         );
+        ui.update(gallery.director.state);
         await gallery.ready;
       })();
+    }
+    if (creating) {
+      const pending = creating;
       try {
-        await creating;
+        await pending;
       } catch (error) {
+        if (creating !== pending) return;
         console.error(error);
-        (gallery as Gallery | undefined)?.dispose();
+        gallery?.dispose();
         gallery = undefined;
         creating = undefined;
         await setMode("index");
@@ -80,6 +87,7 @@ async function boot() {
         );
         return;
       }
+      if (creating === pending) creating = undefined;
     }
     ui.setLoading(false);
     gallery?.setActive(desiredMode === "3d");

@@ -1,14 +1,15 @@
 import * as THREE from "three";
 import { RoomBuilder } from "./scene/RoomBuilder";
 import { Atmosphere } from "./scene/Atmosphere";
-import { buildPlant } from "./scene/PlantBuilder";
+import { buildPlants } from "./scene/PlantBuilder";
 import { FrameManager } from "./scene/FrameManager";
 import { CameraDirector, type CameraState } from "./camera/CameraDirector";
+import { releaseSceneGpu } from "./scene/SceneResources";
 import type { Photo } from "./types";
 
 export class Gallery {
   readonly director: CameraDirector;
-  readonly ready: Promise<unknown>;
+  readonly ready: Promise<void[]>;
   private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
   private camera: THREE.PerspectiveCamera;
@@ -17,6 +18,9 @@ export class Gallery {
   private lastTime = 0;
   private elapsed = 0;
   private active = false;
+  private disposed = false;
+  private gpuReleased = false;
+  private abort = new AbortController();
   private resizeObserver: ResizeObserver;
   private reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
   constructor(
@@ -32,6 +36,9 @@ export class Gallery {
     });
     this.updatePixelRatio();
     this.renderer.shadowMap.enabled = true;
+    // Every shadow caster and light is static. Render the map only on (re)activation.
+    this.renderer.shadowMap.autoUpdate = false;
+    this.renderer.shadowMap.needsUpdate = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -43,9 +50,7 @@ export class Gallery {
     this.viewport.appendChild(this.renderer.domElement);
     const room = new RoomBuilder(this.scene, photos.length);
     this.atmosphere = new Atmosphere(this.scene, room.length);
-    buildPlant(this.scene, -4.6, 3.6, 1.1);
-    buildPlant(this.scene, -4.65, -5.8, 1.15);
-    buildPlant(this.scene, -4.7, 9 - room.length, 1.25);
+    buildPlants(this.scene, room.length);
     this.frames = new FrameManager(
       this.scene,
       photos,
@@ -68,25 +73,42 @@ export class Gallery {
         onChange(state);
       },
     );
+    this.scene.updateMatrixWorld(true);
+    this.scene.traverse((object) => {
+      object.matrixAutoUpdate = false;
+      object.matrixWorldAutoUpdate = false;
+      object.frustumCulled = true;
+      if (object instanceof THREE.Mesh || object instanceof THREE.Points) {
+        if (!object.geometry.boundingSphere)
+          object.geometry.computeBoundingSphere();
+      }
+    });
     this.ready = this.frames.ready;
+    this.director.setEnabled(false);
     this.resize();
     this.resizeObserver = new ResizeObserver(this.resize);
     this.resizeObserver.observe(this.viewport);
-    window.addEventListener("resize", this.resize);
-    document.addEventListener("visibilitychange", this.visibility);
-    this.renderer.domElement.addEventListener("webglcontextlost", (event) => {
-      event.preventDefault();
-      this.setActive(false);
-      onFailure();
+    window.addEventListener("resize", this.resize, {
+      signal: this.abort.signal,
     });
+    document.addEventListener("visibilitychange", this.visibility, {
+      signal: this.abort.signal,
+    });
+    this.renderer.domElement.addEventListener(
+      "webglcontextlost",
+      (event) => {
+        event.preventDefault();
+        this.setActive(false);
+        onFailure();
+      },
+      { signal: this.abort.signal },
+    );
   }
   private updatePixelRatio() {
-    const coarse = matchMedia("(pointer: coarse)").matches;
-    const maxDpr = coarse ? 2.5 : 3;
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, maxDpr));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
   }
   private resize = () => {
-    if (!this.viewport.clientWidth) return;
+    if (this.disposed || !this.viewport.clientWidth || !this.active) return;
     const width = this.viewport.clientWidth || innerWidth,
       height = this.viewport.clientHeight || innerHeight;
     this.updatePixelRatio();
@@ -96,48 +118,60 @@ export class Gallery {
     this.director.resize();
   };
   private visibility = () => {
-    this.renderer.setAnimationLoop(
-      this.active && !document.hidden ? this.render : null,
-    );
+    const running = this.active && !document.hidden && !this.disposed;
+    this.director.setEnabled(running);
+    this.renderer.setAnimationLoop(running ? this.render : null);
     this.lastTime = 0;
   };
   setActive(active: boolean) {
+    if (this.disposed) return;
+    const changed = this.active !== active;
     this.active = active;
-    this.director.setEnabled(active);
-    if (active) this.resize();
+    if (active && changed) {
+      this.gpuReleased = false;
+      this.renderer.shadowMap.needsUpdate = true;
+      this.resize();
+    }
     this.visibility();
+    if (!active) this.releaseGpu();
+  }
+
+  private releaseGpu() {
+    if (this.gpuReleased) return;
+    releaseSceneGpu(this.scene);
+    this.renderer.renderLists.dispose();
+    // Release the full-resolution default framebuffer while the canvas is hidden.
+    this.renderer.setSize(1, 1, false);
+    this.gpuReleased = true;
   }
   private render = (time: number) => {
-    const dt = Math.min(
-      this.lastTime ? (time - this.lastTime) / 1000 : 0.016,
-      0.05,
-    );
+    // Context loss can precede delivery of the browser's contextlost event.
+    if (
+      !this.active ||
+      this.disposed ||
+      document.hidden ||
+      this.renderer.getContext().isContextLost()
+    )
+      return;
+    const frameDt = this.lastTime ? (time - this.lastTime) / 1000 : 0.016;
+    const dt = Math.min(frameDt, 0.05);
     this.lastTime = time;
     this.elapsed += dt;
-    this.director.update(dt);
+    this.director.update(dt, frameDt);
     this.atmosphere.update(this.reduced ? 0 : this.elapsed);
     this.renderer.render(this.scene, this.camera);
   };
   dispose() {
+    if (this.disposed) return;
     this.resizeObserver.disconnect();
     this.setActive(false);
+    this.disposed = true;
+    this.abort.abort();
     this.director.dispose();
-    window.removeEventListener("resize", this.resize);
-    document.removeEventListener("visibilitychange", this.visibility);
-    this.scene.traverse((object) => {
-      if (object instanceof THREE.Mesh || object instanceof THREE.Points) {
-        object.geometry.dispose();
-        const materials = Array.isArray(object.material)
-          ? object.material
-          : [object.material];
-        for (const material of materials) {
-          for (const value of Object.values(material))
-            if (value instanceof THREE.Texture) value.dispose();
-          material.dispose();
-        }
-      }
-    });
+    this.frames.dispose();
+    this.scene.clear();
     this.renderer.dispose();
+    this.renderer.forceContextLoss();
     this.renderer.domElement.remove();
   }
 }

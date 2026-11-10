@@ -29,35 +29,34 @@ export class Atmosphere {
       depthWrite: false,
       side: THREE.DoubleSide,
       blending: THREE.AdditiveBlending,
-      vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
-      fragmentShader: `varying vec2 vUv; uniform float uTime;
+      vertexShader: `varying mediump vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+      fragmentShader: `precision mediump float;
+varying mediump vec2 vUv; uniform float uTime;
       void main(){
-        float edge=pow(sin(vUv.x*3.14159265),2.0);
+        float edge=sin(vUv.x*3.14159265); edge*=edge;
         float fade=smoothstep(0.0,0.22,vUv.y)*(1.0-smoothstep(0.65,1.0,vUv.y));
         float bands=0.85+0.15*sin(vUv.x*48.0+uTime*0.08);
         gl_FragColor=vec4(1.0,0.85,0.53,edge*fade*bands*0.032);
       }`,
     });
+    const beamGeometry = new THREE.PlaneGeometry(2.6, 7.3);
+    const patchGeometry = new THREE.PlaneGeometry(4.1, 3.1);
+    const patchMaterial = new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      vertexShader: `varying mediump vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+      fragmentShader: `precision mediump float;
+varying mediump vec2 vUv;void main(){vec2 p=abs(vUv-.5);float a=(1.0-smoothstep(.40,.5,p.x))*(1.0-smoothstep(.40,.5,p.y));gl_FragColor=vec4(1.,.82,.43,a*.15);}`,
+    });
     for (let z = 0; z > 7 - length; z -= 4.8) {
-      const beam = new THREE.Mesh(
-        new THREE.PlaneGeometry(2.6, 7.3),
-        shaftMaterial,
-      );
+      const beam = new THREE.Mesh(beamGeometry, shaftMaterial);
       beam.position.set(0.9, 2.8, z);
       beam.rotation.z = -0.5;
       beam.rotation.y = 0.25;
       scene.add(beam);
       // Soft quadrilateral pools of sunlight beneath each skylight.
-      const patch = new THREE.Mesh(
-        new THREE.PlaneGeometry(4.1, 3.1),
-        new THREE.ShaderMaterial({
-          transparent: true,
-          depthWrite: false,
-          blending: THREE.AdditiveBlending,
-          vertexShader: `varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
-          fragmentShader: `varying vec2 vUv;void main(){vec2 p=abs(vUv-.5);float a=(1.0-smoothstep(.40,.5,p.x))*(1.0-smoothstep(.40,.5,p.y));gl_FragColor=vec4(1.,.82,.43,a*.15);}`,
-        }),
-      );
+      const patch = new THREE.Mesh(patchGeometry, patchMaterial);
       patch.rotation.set(-Math.PI / 2, 0, -0.32);
       patch.position.set(2, 0.025, z - 1);
       scene.add(patch);
@@ -81,15 +80,19 @@ export class Atmosphere {
         transparent: true,
         depthWrite: false,
         blending: THREE.AdditiveBlending,
-        vertexShader: `attribute float aPhase;uniform float uTime;varying float vFade;
+        vertexShader: `attribute float aPhase;uniform float uTime;varying mediump float vFade;
         void main(){ vec3 p=position; p.x+=sin(uTime*.13+aPhase)*.17;p.y+=sin(uTime*.09+aPhase)*.15;
         vec4 mv=modelViewMatrix*vec4(p,1.);gl_Position=projectionMatrix*mv;gl_PointSize=clamp(13./(-mv.z),1.,2.5);vFade=.25+.25*sin(aPhase+uTime*.2); }`,
-        fragmentShader: `varying float vFade;void main(){float a=1.-smoothstep(.05,.5,length(gl_PointCoord-.5));gl_FragColor=vec4(1.,.9,.7,a*vFade);}`,
+        fragmentShader: `precision mediump float;
+varying mediump float vFade;void main(){float a=1.-smoothstep(.05,.5,length(gl_PointCoord-.5));gl_FragColor=vec4(1.,.9,.7,a*vFade);}`,
       }),
     );
+    // Vertex animation can move particles outside the unanimated geometry bounds.
+    geometry.computeBoundingSphere();
+    geometry.boundingSphere!.radius += Math.hypot(0.17, 0.15);
     scene.add(dust);
   }
   update(elapsed: number) {
-    this.time.value = elapsed;
+    this.time.value = elapsed % (200 * Math.PI);
   }
 }

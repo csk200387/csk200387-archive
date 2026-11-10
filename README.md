@@ -1,6 +1,6 @@
 # STILL / ROOM
 
-An unhurried, sunlit photography exhibition built with Vite, vanilla TypeScript, Three.js, GSAP, and exifr. Architectural materials and plants are procedural; no model downloads or runtime photo services are required.
+An unhurried, sunlit photography exhibition built with Vite, vanilla TypeScript, Three.js, and a build-time exifr scanner. Architectural materials and plants are procedural; no model downloads or runtime photo services are required.
 
 ## Run locally
 
@@ -17,7 +17,10 @@ Open the Local URL printed by Vite. `predev` creates the photo manifest before s
 npm run build          # Regenerate the manifest, typecheck, and build dist/
 npm run preview        # Serve the production build
 npm run test:pipeline  # Test the scanner using isolated temporary collections
+npm run test:gallery   # Browser navigation/lifecycle checks and allocation guards
 ```
+
+The browser suite uses Playwright Chromium (`npx playwright install chromium`), or an installed Microsoft Edge on macOS. Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to use another Chromium executable. It checks desktop/mobile navigation, exact picking, mode-switch races, context-loss recovery, deferred texture loads, and repeated GPU disposal/resume. No test hooks are included in the production bundle.
 
 ## Make the collection yours
 
@@ -57,20 +60,20 @@ Sidecars override extracted fields without modifying the original photographs. `
 
 Arrow/bracket keys navigate the curated tour; WASD always walks. The 2D lightbox supports arrow keys, Escape, outside click, and native dialog focus management. Reduced-motion preferences disable drifting particles/parallax and shorten transitions.
 
-A fresh visit on small touch devices, devices reporting limited CPU/memory, or Save Data starts in 2D. Visitors can explicitly select 3D. The mode is remembered locally; `?view=index` and `?view=3d` override it. The 3D bundle is dynamically imported only on demand. Rendering is paused entirely in 2D and when the page is hidden. WebGL creation/context failures fall back to the full index.
+A fresh visit on small touch devices, devices reporting limited CPU/memory, or Save Data starts in 2D. Visitors can explicitly select 3D. The mode is remembered locally; `?view=index` and `?view=3d` override it. The 3D bundle is dynamically imported only on demand. Rendering and camera transitions are paused entirely in 2D and when the page is hidden. Entering 2D releases scene GPU buffers, materials, textures, reflection targets, and shadow maps; CPU image/geometry sources and camera state remain available for re-upload on return. WebGL creation/context failures fall back to the full index.
 
 ## Visual systems
 
-The six modules follow `plan.md`:
+The scene and navigation modules are:
 
 - `src/scene/RoomBuilder.ts`: high-resolution canvas Carrara marble, physical clearcoat, a blurred planar reflection, plaster/AO shader, ceiling openings, and room dimensions.
 - `src/scene/Atmosphere.ts`: golden directional lighting, shadows, custom light-shaft/floor-pool shaders, and animated dust.
 - `src/scene/PlantBuilder.ts`: ceramic pots, curved stems and layered, veined Ficus-style leaves with soft contact shadows.
 - `src/scene/FrameManager.ts`: texture loading, proportionate bronze frames, museum labels, dominant-color wall/floor bounce, and clickable floor stops.
-- `src/camera/CameraDirector.ts`: GSAP spline transitions, pointer damping, inspection, free movement, collision bounds, and raycasting.
+- `src/camera/CameraDirector.ts`: allocation-free spline transitions driven by the gallery render loop, pointer damping, inspection, free movement, collision bounds, and raycasting.
 - `src/ui/HudAndStaticView.ts`: header, navigation, metadata placards, responsive editorial index, and accessible lightbox.
 
-Ambient occlusion, light shafts, and color bounce are deliberately inexpensive shader approximations. The floor reflection is rendered at 768² with a nine-tap blur; display pixel ratio is capped at 1.75. This is a real-time WebGL scene, not an offline path-traced render.
+Ambient occlusion, light shafts, and color bounce are deliberately inexpensive shader approximations. The floor reflection is rendered at 512² without redundant MSAA, retaining its nine-tap blur; display pixel ratio is capped at 1.75. Static plants, frame bezels, benches, and ceiling beams use merged geometry; repeated meshes share resources, and static shadows render only on activation. Vertex transforms, plaster grain, and projected reflection UVs retain high precision, while overlay fragment shaders use mediump. See [PERFORMANCE.md](PERFORMANCE.md) for measurements and verification scope.
 
 ## Git-driven updates / hosting
 
