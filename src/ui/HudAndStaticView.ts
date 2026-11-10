@@ -68,13 +68,15 @@ export class HudAndStaticView {
     this.root.innerHTML = `
       <a class="skip-link" href="#index">Skip to photo index</a>
       <header class="micro-hud" aria-label="Gallery navigation">
-        <button type="button" class="hud-brand" aria-label="CSK200387 / ARCHIVE overview">CSK200387 / ARCHIVE &nbsp; <span class="hud-counter">01 / ${pad(photos.length)}</span></button>
+        <div class="hud-bar-main">
+          <button type="button" class="hud-brand" aria-label="CSK200387 / ARCHIVE overview"><span class="hud-brand-name">CSK200387 / ARCHIVE</span><span class="hud-counter">01 / ${pad(photos.length)}</span></button>
+          <nav class="hud-modes" aria-label="View mode">
+            <button type="button" data-mode="3d" aria-pressed="true">[ HI-FI 3D ]</button>
+            <span class="hud-sep" aria-hidden="true">/</span>
+            <button type="button" data-mode="index" aria-pressed="false">2D INDEX</button>
+          </nav>
+        </div>
         <button type="button" class="hud-back-gallery" aria-label="Back to gallery" hidden>[ ← BACK TO GALLERY ]</button>
-        <nav class="hud-modes" aria-label="View mode">
-          <button type="button" data-mode="3d" aria-pressed="true">[ HI-FI 3D ]</button>
-          <span class="hud-sep" aria-hidden="true">/</span>
-          <button type="button" data-mode="index" aria-pressed="false">2D INDEX</button>
-        </nav>
       </header>
       <main>
         <div id="viewport" role="region" aria-label="Interactive 3D photography gallery. Click a photograph to inspect, scroll or use arrow keys to navigate, drag to look around." tabindex="0"></div>

@@ -120,12 +120,39 @@ export class CameraDirector {
       const frame = this.frames.frames[index];
       if (shouldInspect) {
         target = frame.center.clone();
-        const fit =
-          Math.max(frame.height / 2, frame.width / (2 * this.camera.aspect)) /
-          Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2));
-        const dist = Math.max(1.65, fit * 1.24);
-        position = frame.center.clone().addScaledVector(frame.normal, dist);
-        position.y = frame.center.y;
+        const vw = this.canvas.clientWidth || window.innerWidth || 1024;
+        const vh = this.canvas.clientHeight || window.innerHeight || 768;
+        const halfFovTan = Math.tan(
+          THREE.MathUtils.degToRad(this.camera.fov / 2),
+        );
+        if (vw <= 680 || vh <= 700) {
+          const topOccupied = vw <= 680 ? 114 : 64;
+          const bottomOccupied = vw <= 680 ? (vh <= 640 ? 132 : 158) : 180;
+          const availVert = Math.max(
+            0.42,
+            (vh - topOccupied - bottomOccupied) / vh,
+          );
+          const availHoriz = Math.max(0.78, (vw - 32) / vw);
+          const distV = (frame.height / 2) / (halfFovTan * availVert * 0.88);
+          const distH =
+            frame.width /
+            (2 * this.camera.aspect) /
+            (halfFovTan * availHoriz * 0.88);
+          const dist = Math.max(1.65, distV, distH);
+          const visibleHeight = 2 * dist * halfFovTan;
+          const yShift =
+            -((bottomOccupied - topOccupied) / (2 * vh)) * visibleHeight;
+          position = frame.center.clone().addScaledVector(frame.normal, dist);
+          position.y = frame.center.y + yShift;
+          target.y = frame.center.y + yShift;
+        } else {
+          const fit =
+            Math.max(frame.height / 2, frame.width / (2 * this.camera.aspect)) /
+            halfFovTan;
+          const dist = Math.max(1.65, fit * 1.24);
+          position = frame.center.clone().addScaledVector(frame.normal, dist);
+          position.y = frame.center.y;
+        }
       } else {
         // Wide-angle gallery aisle viewpoint showing multiple artworks & room context
         position = frame.aislePosition.clone();
