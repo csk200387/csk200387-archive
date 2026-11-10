@@ -90,8 +90,8 @@ export class HudAndStaticView {
         </nav>
         <section id="index" class="static-view" aria-label="Photography index" hidden>
           <div class="index-bar">
-            <span>CSK200387 / ARCHIVE</span>
             <span>${pad(photos.length)} PHOTOGRAPHS</span>
+            <button type="button" class="index-enter-3d" data-enter-3d>[ ENTER 3D GALLERY ↗ ]</button>
           </div>
           <div class="photo-grid">${photos
             .map(
@@ -145,6 +145,10 @@ export class HudAndStaticView {
     this.root
       .querySelector(".skip-link")!
       .addEventListener("click", () => this.actions.mode("index"));
+
+    this.root
+      .querySelector("[data-enter-3d]")!
+      .addEventListener("click", () => this.actions.mode("3d"));
 
     this.root
       .querySelector(".hud-prev")!

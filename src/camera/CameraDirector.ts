@@ -123,9 +123,9 @@ export class CameraDirector {
         const fit =
           Math.max(frame.height / 2, frame.width / (2 * this.camera.aspect)) /
           Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2));
-        const dist = Math.max(2.15, fit * 1.38);
+        const dist = Math.max(1.65, fit * 1.24);
         position = frame.center.clone().addScaledVector(frame.normal, dist);
-        position.y = EYE_LEVEL;
+        position.y = frame.center.y;
       } else {
         // Wide-angle gallery aisle viewpoint showing multiple artworks & room context
         position = frame.aislePosition.clone();
@@ -419,8 +419,10 @@ export class CameraDirector {
         );
     }
     this.drift.lerp(
-      this.reduced ? new THREE.Vector2() : this.pointer,
-      1 - Math.exp(-dt * 3),
+      this.reduced || this.state.inspecting
+        ? new THREE.Vector2()
+        : this.pointer,
+      1 - Math.exp(-dt * (this.state.inspecting ? 8 : 3)),
     );
     this.camera.position.copy(this.basePosition);
     const forward = this.baseTarget.clone().sub(this.basePosition).normalize();

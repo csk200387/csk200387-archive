@@ -11,6 +11,7 @@ export interface FrameEntry {
   side: number;
   width: number;
   height: number;
+  mipBiasUniform: { value: number };
 }
 
 interface MountSlot {
@@ -200,13 +201,56 @@ function dropShadowMaterial() {
   });
 }
 
+function createHighAcuityTexture(
+  image: HTMLImageElement,
+  maxAnisotropy: number,
+  maxTextureSize: number,
+): THREE.Texture {
+  const cap = Math.min(4096, maxTextureSize);
+  const srcW = image.naturalWidth || image.width;
+  const srcH = image.naturalHeight || image.height;
+  let source: TexImageSource = image;
+
+  // Normalize oversized or odd-dimensioned source images with high-quality resampling
+  // so GPU mipmap generation avoids odd-dimension box-filter phase shift.
+  if (srcW > cap || srcH > cap || srcW % 2 !== 0 || srcH % 2 !== 0) {
+    const scale = Math.min(1, cap / Math.max(srcW, srcH));
+    const targetW = Math.max(2, Math.round((srcW * scale) / 2) * 2);
+    const targetH = Math.max(2, Math.round((srcH * scale) / 2) * 2);
+    const canvas = document.createElement("canvas");
+    canvas.width = targetW;
+    canvas.height = targetH;
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(image, 0, 0, targetW, targetH);
+      source = canvas;
+    }
+  }
+
+  const texture = new THREE.Texture(source);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = maxAnisotropy;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.generateMipmaps = true;
+  texture.needsUpdate = true;
+  return texture;
+}
+
 export class FrameManager {
   readonly frames: FrameEntry[] = [];
   readonly hitTargets: THREE.Object3D[] = [];
   readonly ready: Promise<unknown[]>;
 
-  constructor(scene: THREE.Scene, photos: Photo[]) {
-    const loader = new THREE.TextureLoader();
+  constructor(
+    scene: THREE.Scene,
+    photos: Photo[],
+    maxAnisotropy = 16,
+    maxTextureSize = 4096,
+  ) {
+    const imageLoader = new THREE.ImageLoader();
     const loading: Promise<unknown>[] = [];
 
     const microBronze = new THREE.MeshStandardMaterial({
@@ -304,12 +348,26 @@ export class FrameManager {
         rail.position.set(x * (width / 2 + bezelThickness / 2), 0, 0.032);
       }
 
-      // Full-bleed edge-to-edge photograph print
-      const printMat = new THREE.MeshStandardMaterial({
+      // Color-accurate, fog-exempt, high-acuity photograph print material
+      const mipBiasUniform = { value: -0.45 };
+      const printMat = new THREE.MeshBasicMaterial({
         color: "#ddd5c2",
-        roughness: 0.72,
-        metalness: 0.02,
+        toneMapped: false,
+        fog: false,
       });
+      printMat.onBeforeCompile = (shader) => {
+        shader.uniforms.uMipBias = mipBiasUniform;
+        shader.fragmentShader =
+          "uniform float uMipBias;\n" +
+          shader.fragmentShader.replace(
+            "#include <map_fragment>",
+            `#ifdef USE_MAP
+              vec4 sampledDiffuseColor = texture2D( map, vMapUv, uMipBias );
+              diffuseColor *= sampledDiffuseColor;
+            #endif`,
+          );
+      };
+
       const print = new THREE.Mesh(
         new THREE.PlaneGeometry(width, height),
         printMat,
@@ -320,9 +378,12 @@ export class FrameManager {
       this.hitTargets.push(print);
 
       loading.push(
-        loader.loadAsync(photoUrl(photo)).then((texture) => {
-          texture.colorSpace = THREE.SRGBColorSpace;
-          texture.anisotropy = 8;
+        imageLoader.loadAsync(photoUrl(photo)).then((image) => {
+          const texture = createHighAcuityTexture(
+            image,
+            maxAnisotropy,
+            maxTextureSize,
+          );
           printMat.color.set("#ffffff");
           printMat.map = texture;
           printMat.needsUpdate = true;
@@ -352,9 +413,17 @@ export class FrameManager {
         side: slot.side,
         width,
         height,
+        mipBiasUniform,
       });
     });
 
     this.ready = Promise.all(loading);
+  }
+
+  setFocused(focusedIndex: number) {
+    for (const frame of this.frames) {
+      frame.mipBiasUniform.value =
+        frame.index === focusedIndex ? -0.85 : -0.45;
+    }
   }
 }

@@ -13,6 +13,7 @@ export class Gallery {
   private scene = new THREE.Scene();
   private camera: THREE.PerspectiveCamera;
   private atmosphere: Atmosphere;
+  private frames: FrameManager;
   private lastTime = 0;
   private elapsed = 0;
   private active = false;
@@ -29,7 +30,7 @@ export class Gallery {
       powerPreference: "high-performance",
       alpha: false,
     });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
+    this.updatePixelRatio();
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -45,7 +46,12 @@ export class Gallery {
     buildPlant(this.scene, -4.6, 3.6, 1.1);
     buildPlant(this.scene, -4.65, -5.8, 1.15);
     buildPlant(this.scene, -4.7, 9 - room.length, 1.25);
-    const frames = new FrameManager(this.scene, photos);
+    this.frames = new FrameManager(
+      this.scene,
+      photos,
+      this.renderer.capabilities.getMaxAnisotropy(),
+      this.renderer.capabilities.maxTextureSize,
+    );
     this.camera = new THREE.PerspectiveCamera(
       51,
       1,
@@ -55,11 +61,14 @@ export class Gallery {
     this.director = new CameraDirector(
       this.camera,
       this.renderer.domElement,
-      frames,
+      this.frames,
       room.length,
-      onChange,
+      (state) => {
+        this.frames.setFocused(state.inspecting ? state.index : -1);
+        onChange(state);
+      },
     );
-    this.ready = frames.ready;
+    this.ready = this.frames.ready;
     this.resize();
     this.resizeObserver = new ResizeObserver(this.resize);
     this.resizeObserver.observe(this.viewport);
@@ -71,10 +80,16 @@ export class Gallery {
       onFailure();
     });
   }
+  private updatePixelRatio() {
+    const coarse = matchMedia("(pointer: coarse)").matches;
+    const maxDpr = coarse ? 2.5 : 3;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, maxDpr));
+  }
   private resize = () => {
     if (!this.viewport.clientWidth) return;
     const width = this.viewport.clientWidth || innerWidth,
       height = this.viewport.clientHeight || innerHeight;
+    this.updatePixelRatio();
     this.renderer.setSize(width, height);
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
