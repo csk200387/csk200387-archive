@@ -311,6 +311,25 @@ a:focus-visible,
   margin: 8px 0 10px;
 }
 
+.placard-caption {
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+  margin: -4px 0 12px;
+  white-space: pre-line;
+  overflow-wrap: break-word;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+
+/* The lightbox is the place to read a full caption. */
+.lightbox .placard-caption {
+  display: block;
+}
+
 .placard-exif {
   font-family: var(--mono);
   font-size: 11px;
@@ -328,8 +347,9 @@ a:focus-visible,
 
 .placard-nav {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 16px;
+  gap: 0 16px;
   padding-top: 8px;
   font-family: var(--mono);
   font-size: 11px;
@@ -337,7 +357,8 @@ a:focus-visible,
   text-transform: uppercase;
 }
 
-.placard-nav button {
+.placard-nav :is(button, a) {
+  text-decoration: none;
   font-family: var(--mono);
   font-size: 11px;
   letter-spacing: 0.06em;
@@ -348,7 +369,7 @@ a:focus-visible,
   white-space: nowrap;
 }
 
-.placard-nav button:hover {
+.placard-nav :is(button, a):hover {
   text-decoration: underline;
   text-underline-offset: 4px;
 }
@@ -745,7 +766,7 @@ dialog.lightbox::backdrop {
     letter-spacing: 0.04em;
   }
 
-  .placard-nav button {
+  .placard-nav :is(button, a) {
     font-size: inherit;
     letter-spacing: inherit;
     display: inline-flex;
@@ -852,7 +873,7 @@ dialog.lightbox::backdrop {
     padding-top: 4px;
   }
 
-  .placard-nav button {
+  .placard-nav :is(button, a) {
     min-height: 32px;
     padding: 4px 2px;
   }

@@ -153,9 +153,9 @@ function plantTemplate() {
 export function buildPlants(scene: THREE.Scene, roomLength: number) {
   const template = plantTemplate();
   const placements = [
-    [-4.6, 3.6, 1.1],
-    [-4.65, -5.8, 1.15],
-    [-4.7, 9 - roomLength, 1.25],
+    [-6.2, 3.6, 1.1],
+    [-6.25, -5.8, 1.15],
+    [-6.3, 9 - roomLength, 1.25],
   ];
   for (const [x, z, scale] of placements) {
     const plant = template.clone();

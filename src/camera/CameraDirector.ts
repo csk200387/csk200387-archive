@@ -9,11 +9,26 @@ export interface CameraState {
 }
 
 export const EYE_LEVEL = 1.6;
+export const TRANSITION_DURATION = 1.7;
+
+function evalPiecewiseX(
+  start: THREE.Vector3,
+  firstBend: THREE.Vector3,
+  secondBend: THREE.Vector3,
+  end: THREE.Vector3,
+  t: number,
+) {
+  if (t <= 0.3333) return start.x + (firstBend.x - start.x) * (t / 0.3333);
+  if (t <= 0.6667)
+    return firstBend.x + (secondBend.x - firstBend.x) * ((t - 0.3333) / 0.3334);
+  return secondBend.x + (end.x - secondBend.x) * ((t - 0.6667) / 0.3333);
+}
 
 function avoidObstacles(point: THREE.Vector3) {
   point.y = EYE_LEVEL;
-  const pad = 0.65;
-  for (const obs of ARCHITECTURAL_OBSTACLES) {
+  const pad = 0.6;
+  for (let i = 0; i < ARCHITECTURAL_OBSTACLES.length; i++) {
+    const obs = ARCHITECTURAL_OBSTACLES[i];
     if (
       point.x > obs.minX - pad &&
       point.x < obs.maxX + pad &&
@@ -21,17 +36,63 @@ function avoidObstacles(point: THREE.Vector3) {
       point.z < obs.maxZ + pad
     ) {
       const centerX = (obs.minX + obs.maxX) * 0.5;
-      if (centerX < -0.5) {
-        point.x = Math.max(point.x, obs.maxX + pad + 0.5);
-      } else if (centerX > 0.5) {
-        point.x = Math.min(point.x, obs.minX - pad - 0.5);
-      } else {
-        point.x =
-          point.x >= centerX ? obs.maxX + pad + 0.4 : obs.minX - pad - 0.4;
+      point.x =
+        point.x >= centerX ? obs.maxX + pad + 0.45 : obs.minX - pad - 0.45;
+    }
+  }
+  point.x = THREE.MathUtils.clamp(point.x, -6.3, 6.3);
+}
+
+function deflectAroundObstacles(
+  start: THREE.Vector3,
+  end: THREE.Vector3,
+  firstBend: THREE.Vector3,
+  secondBend: THREE.Vector3,
+) {
+  // Same-side perimeter corridor lanes (|x| >= 3.5) are 100% outside all central
+  // obstacles; keep their control points collinear for a zero-detour straight glide.
+  if (
+    (start.x >= 3.5 && end.x >= 3.5) ||
+    (start.x <= -3.5 && end.x <= -3.5)
+  ) {
+    return;
+  }
+  const pad = 0.6;
+  const dz = end.z - start.z;
+  if (Math.abs(dz) > 15) {
+    if (dz > 0) {
+      firstBend.set(-1.65, EYE_LEVEL, -6.5);
+      secondBend.set(1.25, EYE_LEVEL, -5.6);
+    } else {
+      firstBend.set(1.25, EYE_LEVEL, -5.6);
+      secondBend.set(-1.65, EYE_LEVEL, -6.5);
+    }
+    return;
+  }
+  avoidObstacles(firstBend);
+  avoidObstacles(secondBend);
+  if (Math.abs(dz) < 0.001) return;
+  for (let pass = 0; pass < 2; pass++) {
+    for (let i = 0; i < ARCHITECTURAL_OBSTACLES.length; i++) {
+      const obs = ARCHITECTURAL_OBSTACLES[i];
+      const centerX = (obs.minX + obs.maxX) * 0.5;
+      for (let k = 0; k <= 2; k++) {
+        const zSample =
+          obs.minZ - pad * 0.4 + (obs.maxZ - obs.minZ + pad * 0.8) * (k * 0.5);
+        const t = (zSample - start.z) / dz;
+        if (t <= 0.04 || t >= 0.96) continue;
+        const xAtObs = evalPiecewiseX(start, firstBend, secondBend, end, t);
+        if (xAtObs > obs.minX - pad && xAtObs < obs.maxX + pad) {
+          const goRight = xAtObs >= centerX;
+          const need = goRight
+            ? obs.maxX + pad + 0.45 - xAtObs
+            : obs.minX - pad - 0.45 - xAtObs;
+          const bend = t < 0.5 ? firstBend : secondBend;
+          bend.x = THREE.MathUtils.clamp(bend.x + need * 1.45, -6.3, 6.3);
+        }
       }
     }
   }
-  point.x = THREE.MathUtils.clamp(point.x, -4.7, 4.7);
 }
 
 export class CameraDirector {
@@ -85,9 +146,9 @@ export class CameraDirector {
     private onChange: (state: CameraState) => void,
   ) {
     this.planterPositions = [
-      [-4.6, 3.6],
-      [-4.65, -5.8],
-      [-4.7, 9 - length],
+      [-6.2, 3.6],
+      [-6.25, -5.8],
+      [-6.3, 9 - length],
     ];
     const options = { signal: this.abort.signal };
     canvas.addEventListener("pointermove", this.onPointerMove, options);
@@ -232,9 +293,8 @@ export class CameraDirector {
     const delta = this.movement.subVectors(destination, start);
     firstBend.copy(start).addScaledVector(delta, 0.33);
     secondBend.copy(start).addScaledVector(delta, 0.67);
-    if (delta.length() > 2.5) {
-      avoidObstacles(firstBend);
-      avoidObstacles(secondBend);
+    if (delta.length() > 1.2) {
+      deflectAroundObstacles(start, end, firstBend, secondBend);
     }
     this.transitionElapsed = 0;
     this.transitioning = true;
@@ -366,9 +426,9 @@ export class CameraDirector {
       this.transitionElapsed += transitionDt;
       const progress = Math.min(
         1,
-        this.transitionElapsed / (this.reduced ? 0.01 : 1.35),
+        this.transitionElapsed / (this.reduced ? 0.01 : TRANSITION_DURATION),
       );
-      // GSAP power2.inOut is cubic; retain the original timing and spline.
+      // Cubic in-out easing across the 20%-slower (1.70s) spline transition.
       const eased =
         progress < 0.5
           ? 4 * progress * progress * progress
@@ -393,14 +453,14 @@ export class CameraDirector {
       if (this.keys.has("s")) movement.sub(forward);
       if (this.keys.has("d")) movement.add(right);
       if (this.keys.has("a")) movement.sub(right);
-      if (movement.lengthSq()) movement.normalize().multiplyScalar(2.8);
-      this.velocity.lerp(movement, 1 - Math.exp(-dt * 7));
+      if (movement.lengthSq()) movement.normalize().multiplyScalar(2.24);
+      this.velocity.lerp(movement, 1 - Math.exp(-dt * 5.6));
       this.basePosition.addScaledVector(this.velocity, dt);
       this.basePosition.y = EYE_LEVEL;
       this.basePosition.x = THREE.MathUtils.clamp(
         this.basePosition.x,
-        -4.8,
-        4.8,
+        -6.4,
+        6.4,
       );
       this.basePosition.z = THREE.MathUtils.clamp(
         this.basePosition.z,

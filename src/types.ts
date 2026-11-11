@@ -20,6 +20,8 @@ export interface Photo {
   };
   sample: boolean;
   credit: { label: string; url: string; source?: string } | null;
+  caption?: string;
+  permalink?: string;
 }
 export const ASSET_BASE = import.meta.env.BASE_URL;
 export const photoUrl = (photo: Photo) =>

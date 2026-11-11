@@ -34,7 +34,10 @@ function formatExifLine(photo: Photo): string {
   const iso = photo.exif.iso ? `ISO ${photo.exif.iso}` : null;
   const specs = [focal, aperture, shutter, iso].filter(Boolean);
   if (specs.length) return specs.join(" · ");
-  return `${photo.ratioLabel} · ${photo.width}×${photo.height}`.toUpperCase();
+  return [photo.exif.date, photo.ratioLabel, `${photo.width}×${photo.height}`]
+    .filter(Boolean)
+    .join(" · ")
+    .toUpperCase();
 }
 
 function filenameOf(photo: Photo): string {
@@ -286,17 +289,23 @@ export class HudAndStaticView {
   };
 
   private renderPlacardMarkup(photo: Photo, index: number) {
+    // Only https links reach href; a hand-edited sidecar cannot inject javascript: URLs.
+    const link = /^https:\/\//.test(photo.permalink ?? "")
+      ? `<a class="placard-link" href="${esc(photo.permalink)}" target="_blank" rel="noopener noreferrer">[ ↗ INSTAGRAM ]</a>`
+      : "";
     return `
       <div class="placard-header">
         <span class="placard-index">${pad(index + 1)} / ${pad(this.photos.length)}</span>
         <span class="placard-file">${esc(filenameOf(photo))}</span>
       </div>
       <h2 class="placard-title">${esc(displayTitle(photo, index))}</h2>
+      ${photo.description ? `<p class="placard-caption">${esc(photo.description)}</p>` : ""}
       <p class="placard-exif">${esc(formatExifLine(photo))}</p>
       <nav class="placard-nav" aria-label="Photograph controls">
         <button type="button" data-action="prev">[ ← PREV ]</button>
         <button type="button" data-action="next">[ NEXT → ]</button>
         <button type="button" data-action="esc">[ × BACK TO ROOM ]</button>
+        ${link}
       </nav>
     `;
   }

@@ -49,6 +49,16 @@ Optional JSON sidecars sharing the photo's filename stem (e.g., `20250920_161310
 }
 ```
 
+### Importing from Instagram
+
+`npm run sync:ig` downloads posts into `public/photos/` as `NN-ig-<mediaId>.webp` plus a sidecar (title, description, `caption`, `permalink`, camera specs parsed from the caption), then regenerates `photos.json`. Placards show the caption and an `[ ↗ INSTAGRAM ]` link. The source is picked in this order:
+
+1. `--mock`: the bundled offline feed (`scripts/ig-mock-feed.json`). Add `--out <dir>` to preview it outside `public/`.
+2. `IG_ACCESS_TOKEN` in `.env`: Instagram API with Instagram Login. Every carousel slide is imported.
+3. `urls` in `instagram.config.json`: public post pages, read from OpenGraph tags (cover image only).
+
+Run `npm run sync:ig -- --list` to see media IDs, then put the ones you want, in order, into `select` (empty = everything up to `limit`). Downloaded images are cached by ID. Photos dropped from `select` are deleted, and files without the `NN-ig-` prefix are never touched.
+
 ### Controls & Navigation
 
 | Control                                   | Behavior                                               |
@@ -127,6 +137,16 @@ npm run test:gallery   # 브라우저 네비게이션, 모바일 레이아웃, �
   "exif": { "camera": "카메라 모델명" }
 }
 ```
+
+### 인스타그램에서 가져오기
+
+`npm run sync:ig`는 게시물을 `public/photos/`에 `NN-ig-<mediaId>.webp`로 내려받습니다. 함께 사이드카(제목, 설명, `caption`, `permalink`, 캡션에서 파싱한 카메라 정보)를 쓰고 `photos.json`을 다시 생성합니다. 플라카드에는 캡션과 `[ ↗ INSTAGRAM ]` 링크가 표시됩니다. 소스 우선순위는 다음과 같습니다:
+
+1. `--mock`: 내장 오프라인 피드(`scripts/ig-mock-feed.json`). `--out <dir>`을 붙이면 `public/` 밖에서 미리 볼 수 있습니다.
+2. `.env`의 `IG_ACCESS_TOKEN`: Instagram API with Instagram Login. 캐러셀의 모든 슬라이드를 가져옵니다.
+3. `instagram.config.json`의 `urls`: 공개 게시물 페이지의 OpenGraph 태그를 읽습니다(커버 이미지만).
+
+`npm run sync:ig -- --list`로 미디어 ID를 확인한 뒤, 전시할 ID를 원하는 순서대로 `select`에 넣으세요(비우면 `limit`까지 전부 가져옵니다). 이미지는 ID 기준으로 캐시됩니다. `select`에서 빠진 사진은 삭제되며, `NN-ig-` 접두사가 없는 파일은 건드리지 않습니다.
 
 ### 조작 방법
 

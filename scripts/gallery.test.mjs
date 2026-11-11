@@ -55,7 +55,7 @@ test("desktop navigation, inspection, click-outside, drag, and index lightbox", 
   await page.goto(`${base}?view=3d`);
   await ready3d(page);
   await page.locator(".hud-next").click();
-  await page.waitForTimeout(1450);
+  await page.waitForTimeout(1800);
   await page.locator("#viewport").focus();
   await page.keyboard.press("Enter");
   await page.waitForSelector(".placard:not([hidden])");
@@ -63,7 +63,7 @@ test("desktop navigation, inspection, click-outside, drag, and index lightbox", 
     await page.locator(".placard-index").first().textContent(),
     /01 \/ \d+/,
   );
-  await page.waitForTimeout(1450);
+  await page.waitForTimeout(1800);
   // At the frame center the hit must keep inspection active.
   await page.mouse.click(720, 500);
   assert.equal(await page.locator(".placard").isVisible(), true);
@@ -73,7 +73,7 @@ test("desktop navigation, inspection, click-outside, drag, and index lightbox", 
     /02 \/ \d+/,
   );
   await page.locator('.placard [data-action="prev"]').click();
-  await page.waitForTimeout(1450);
+  await page.waitForTimeout(1800);
   await page.mouse.click(1380, 700);
   await page.waitForSelector(".placard[hidden]", { state: "attached" });
   assert.match(
@@ -81,7 +81,7 @@ test("desktop navigation, inspection, click-outside, drag, and index lightbox", 
     /01 \/ \d+/,
   );
   await page.locator(".hud-overview").click();
-  await page.waitForTimeout(1450);
+  await page.waitForTimeout(1800);
   await page.mouse.move(740, 470);
   await page.mouse.down();
   await page.mouse.move(810, 490, { steps: 10 });
@@ -134,7 +134,7 @@ test("mobile defaults to index and retains safe-area inspection controls at DPR 
   await page.locator(".hud-next").click();
   await page.locator("#viewport").focus();
   await page.keyboard.press("Enter");
-  await page.waitForTimeout(1450);
+  await page.waitForTimeout(1800);
   const bounds = await page.locator(".placard").boundingBox();
   const header = await page.locator(".micro-hud").boundingBox();
   assert.ok(bounds.y >= header.y + header.height);
@@ -176,7 +176,7 @@ test("picking matches mesh raycasting and repeated GPU release/resume does not l
     for (let index = 0; index < g.frames.frames.length; index++) {
       for (const inspecting of [false, true]) {
         g.director.go(index, inspecting);
-        g.director.update(0, 1.35);
+        g.director.update(0, 1.7);
         g.camera.updateMatrixWorld();
         for (let x = -1; x <= 1; x += 0.1)
           for (let y = -1; y <= 1; y += 0.1) {
@@ -193,26 +193,98 @@ test("picking matches mesh raycasting and repeated GPU release/resume does not l
   assert.equal(picking.mismatches, 0, JSON.stringify(picking));
   assert.ok(picking.rays > 0);
   t.diagnostic(`${picking.rays} rays matched Three.js mesh picking`);
-  const transition = await page.evaluate(() => {
+  const transition = await page.evaluate(async () => {
+    const { ARCHITECTURAL_OBSTACLES } = await import("./src/scene/RoomBuilder.ts");
     const g = window.testGallery;
     g.renderer.setAnimationLoop(null);
     g.director.go(0);
-    g.director.update(0, 0.675);
+    g.director.update(0, 0.85);
     const midpoint = g.camera.position.clone();
     g.director.setEnabled(false);
     g.director.update(0, 10);
     const paused = midpoint.equals(g.camera.position);
     g.director.setEnabled(true);
-    g.director.update(0, 0.675);
+    g.director.update(0, 0.85);
     const arrived =
       g.camera.position.distanceTo(g.frames.frames[0].aislePosition) < 1e-6;
+    const rightWallContinuous = g.frames.frames
+      .slice(0, 6)
+      .every((f, i, a) => f.normal.x === -1 && (i === 0 || f.center.z < a[i - 1].center.z));
+    const backWallCenterpiece = g.frames.frames[6].normal.z === 1 && g.frames.frames[6].center.z < -30;
+    const leftWallContinuous = g.frames.frames
+      .slice(7, 12)
+      .every((f, i, a) => f.normal.x === 1 && (i === 0 || f.center.z > a[i - 1].center.z));
+    const centralBafflesSequential = g.frames.frames
+      .slice(12, 15)
+      .every((f, i, a) => f.normal.z === 1 && (i === 0 || f.center.z < a[i - 1].center.z));
+    const aisleDistancesWithinRange = g.frames.frames.every((f) => {
+      const dist = f.aislePosition.distanceTo(f.center);
+      return dist >= 3.2 && dist <= 4.2;
+    });
+    let maxSameWallLateralDeviation = 0;
+    let obstacleHits = 0;
+    for (const dir of [1, -1]) {
+      g.director.go(0, false);
+      g.director.update(0, 1.7);
+      for (let step = 0; step < g.frames.frames.length; step++) {
+        const fromIdx = g.director.state.index;
+        const fromPos = g.frames.frames[fromIdx].aislePosition;
+        g.director.step(dir);
+        const toIdx = g.director.state.index;
+        const toPos = g.frames.frames[toIdx].aislePosition;
+        const samePerimeterWall =
+          (fromIdx <= 5 && toIdx <= 5) ||
+          (fromIdx >= 7 && fromIdx <= 11 && toIdx >= 7 && toIdx <= 11);
+        for (let s = 0; s < 34; s++) {
+          g.director.update(0, 1.7 / 34);
+          const p = g.camera.position;
+          if (samePerimeterWall) {
+            maxSameWallLateralDeviation = Math.max(
+              maxSameWallLateralDeviation,
+              Math.abs(p.x - fromPos.x),
+              Math.abs(p.x - toPos.x),
+            );
+          }
+          for (const obs of ARCHITECTURAL_OBSTACLES) {
+            if (
+              p.x > obs.minX - 0.35 &&
+              p.x < obs.maxX + 0.35 &&
+              p.z > obs.minZ - 0.35 &&
+              p.z < obs.maxZ + 0.35
+            ) {
+              obstacleHits++;
+            }
+          }
+        }
+      }
+    }
     g.visibility();
-    return { paused, arrived };
+    return {
+      paused,
+      arrived,
+      rightWallContinuous,
+      backWallCenterpiece,
+      leftWallContinuous,
+      centralBafflesSequential,
+      aisleDistancesWithinRange,
+      straightCorridorGlide: maxSameWallLateralDeviation < 1e-5,
+      obstacleHits,
+    };
   });
-  assert.deepEqual(transition, { paused: true, arrived: true });
+  assert.deepEqual(transition, {
+    paused: true,
+    arrived: true,
+    rightWallContinuous: true,
+    backWallCenterpiece: true,
+    leftWallContinuous: true,
+    centralBafflesSequential: true,
+    aisleDistancesWithinRange: true,
+    straightCorridorGlide: true,
+    obstacleHits: 0,
+  });
   // Warm the same view before every resource comparison.
   await page.evaluate(() => window.testGallery.director.go(-1));
-  await page.waitForTimeout(1500);
+  await page.waitForTimeout(1850);
   const activeCounts = [];
   for (let cycle = 0; cycle < 4; cycle++) {
     await page.evaluate(() => window.testGallery.setActive(false));
@@ -365,4 +437,31 @@ test("rapid mode switches during loading and context loss recover to a usable ga
   await page.locator("#viewport").focus();
   await page.keyboard.press("Enter");
   assert.equal(await page.locator(".placard").isVisible(), true);
+});
+
+test("Instagram caption and https-only permalink render in the placard", async (t) => {
+  const page = await pageFor(t);
+  await page.route("**/photos.json", async (route) => {
+    const response = await route.fetch();
+    const photos = await response.json();
+    Object.assign(photos[0], {
+      description: "Night walk <b>home</b>",
+      permalink: "https://www.instagram.com/p/TEST/",
+    });
+    photos[1].permalink = "javascript:alert(1)";
+    await route.fulfill({ response, json: photos });
+  });
+  await page.goto(`${base}?view=index`);
+  await page.locator('[data-photo="0"]').click();
+  await page.waitForSelector("dialog[open]");
+  const link = page.locator(".lightbox .placard-link");
+  assert.equal(await link.getAttribute("href"), "https://www.instagram.com/p/TEST/");
+  assert.equal(await link.getAttribute("rel"), "noopener noreferrer");
+  assert.equal(
+    await page.locator(".lightbox .placard-caption").textContent(),
+    "Night walk <b>home</b>",
+  );
+  await page.locator('.lightbox [data-action="next"]').click();
+  assert.equal(await page.locator(".lightbox .placard-link").count(), 0);
+  assert.equal(await page.locator(".lightbox .placard-caption").count(), 0);
 });

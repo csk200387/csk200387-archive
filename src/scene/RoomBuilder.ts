@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { mergeStaticGeometry } from "./StaticGeometry";
 import { Reflector } from "three/addons/objects/Reflector.js";
 
-export const ROOM_WIDTH = 12;
+export const ROOM_WIDTH = 15.2;
 export const ROOM_HEIGHT = 5.6;
 
 export interface ArchitecturalObstacle {
@@ -136,7 +136,7 @@ export class RoomBuilder {
     color.repeat.y = this.length / 4.4;
     rough.repeat.copy(color.repeat);
     const floor = new THREE.Mesh(
-      new THREE.PlaneGeometry(12, this.length),
+      new THREE.PlaneGeometry(ROOM_WIDTH, this.length),
       new THREE.MeshPhysicalMaterial({
         map: color,
         roughnessMap: rough,
@@ -206,22 +206,22 @@ export class RoomBuilder {
     };
 
     // Perimeter enclosure walls
-    box(0.2, 5.6, this.length, -6.1, 2.8, centerZ);
-    box(0.2, 5.6, this.length, 6.1, 2.8, centerZ);
-    box(12.4, 5.6, 0.22, 0, 2.8, 7 - this.length);
-    box(12.4, 5.6, 0.22, 0, 2.8, 7.0);
+    box(0.2, 5.6, this.length, -7.7, 2.8, centerZ);
+    box(0.2, 5.6, this.length, 7.7, 2.8, centerZ);
+    box(15.6, 5.6, 0.22, 0, 2.8, 7 - this.length);
+    box(15.6, 5.6, 0.22, 0, 2.8, 7.0);
 
     // Staggered perimeter wall alcoves / projecting architectural wall planes
     // Zone 1 bays
-    box(0.44, 5.6, 4.6, -5.78, 2.8, -1.3);
-    box(0.44, 5.6, 4.8, 5.78, 2.8, -7.2);
+    box(0.44, 5.6, 4.6, -7.38, 2.8, -1.3);
+    box(0.44, 5.6, 4.8, 7.38, 2.8, -7.2);
     // Zone 2 bays
-    box(0.44, 5.6, 4.8, -5.78, 2.8, -14.6);
-    box(0.44, 5.6, 4.6, 5.78, 2.8, -17.6);
+    box(0.44, 5.6, 4.8, -7.38, 2.8, -14.6);
+    box(0.44, 5.6, 4.6, 7.38, 2.8, -17.6);
     // Zone 3 bays (when room extends deeper)
     if (count > 8) {
-      box(0.44, 5.6, 4.6, -5.78, 2.8, -26.8);
-      box(0.44, 5.6, 4.6, 5.78, 2.8, -28.0);
+      box(0.44, 5.6, 4.6, -7.38, 2.8, -26.8);
+      box(0.44, 5.6, 4.6, 7.38, 2.8, -28.0);
     }
 
     // Freestanding central architectural partition walls (baffles)
@@ -250,11 +250,11 @@ export class RoomBuilder {
     }
 
     // Long ceiling openings, cross beams, and recessed skylight glazing.
-    box(3.8, 0.22, this.length, -4.1, 5.6, centerZ);
-    box(3.8, 0.22, this.length, 4.1, 5.6, centerZ);
+    box(5.2, 0.22, this.length, -5.0, 5.6, centerZ);
+    box(5.2, 0.22, this.length, 5.0, 5.6, centerZ);
     const crossBeams: THREE.Mesh[] = [];
     for (let z = 6; z > 7 - this.length; z -= 4.8)
-      crossBeams.push(box(4.4, 0.3, 0.23, 0, 5.6, z));
+      crossBeams.push(box(4.8, 0.3, 0.23, 0, 5.6, z));
     const beams = new THREE.Mesh(mergeStaticGeometry(crossBeams), wallMaterial);
     beams.castShadow = beams.receiveShadow = true;
     this.group.remove(...crossBeams);
@@ -264,7 +264,7 @@ export class RoomBuilder {
       side: THREE.DoubleSide,
     });
     const sky = new THREE.Mesh(
-      new THREE.PlaneGeometry(4.4, this.length),
+      new THREE.PlaneGeometry(4.8, this.length),
       glass,
     );
     sky.rotation.x = Math.PI / 2;
@@ -275,8 +275,8 @@ export class RoomBuilder {
       roughness: 0.7,
     });
     for (const side of [-1, 1]) {
-      box(0.035, 0.07, this.length, side * 5.985, 0.045, centerZ, trim);
-      box(0.045, 0.035, this.length, side * 2.23, 5.43, centerZ, trim);
+      box(0.035, 0.07, this.length, side * 7.585, 0.045, centerZ, trim);
+      box(0.045, 0.035, this.length, side * 2.43, 5.43, centerZ, trim);
     }
     // Fine expansion seams make the large marble slabs legible.
     const seamMat = new THREE.MeshBasicMaterial({
@@ -287,12 +287,12 @@ export class RoomBuilder {
     const seamGeometry = new THREE.PlaneGeometry(1, 1);
     for (let z = 5; z > 7 - this.length; z -= 3.2) {
       const seam = new THREE.Mesh(seamGeometry, seamMat);
-      seam.scale.set(12, 0.008, 1);
+      seam.scale.set(ROOM_WIDTH, 0.008, 1);
       seam.rotation.x = -Math.PI / 2;
       seam.position.set(0, 0.016, z);
       this.group.add(seam);
     }
-    for (const x of [-3, 0, 3]) {
+    for (const x of [-3.8, 0, 3.8]) {
       const seam = new THREE.Mesh(seamGeometry, seamMat);
       seam.rotation.x = -Math.PI / 2;
       seam.scale.set(0.008, this.length, 1);

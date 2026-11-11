@@ -24,142 +24,162 @@ interface MountSlot {
   baffle?: boolean;
 }
 
+// Continuous museum flow:
+// 1. Right Wall from entrance to back (01 -> 06)
+// 2. Back Wall Centerpiece (07)
+// 3. Left Wall returning from back to entrance (08 -> 12)
+// 4. Central Partition Baffles from front to back (13 -> 15)
 const CURATED_SLOTS: MountSlot[] = [
-  // 01: Zone 1 — Left projecting architectural bay 1
+  // 01: Right Wall — Zone 1 recessed gallery bay
   {
-    position: new THREE.Vector3(-5.56, 1.65, -1.3),
-    normal: new THREE.Vector3(1, 0, 0),
-    aislePosition: new THREE.Vector3(1.6, 1.6, 2.2),
-    aisleTarget: new THREE.Vector3(-4.2, 1.6, -2.4),
-    side: -1,
-  },
-  // 02: Zone 1 — Right recessed gallery wall bay 1
-  {
-    position: new THREE.Vector3(6.0, 1.65, -2.2),
+    position: new THREE.Vector3(7.6, 1.65, -2.2),
     normal: new THREE.Vector3(-1, 0, 0),
-    aislePosition: new THREE.Vector3(-1.4, 1.6, 1.2),
-    aisleTarget: new THREE.Vector3(4.5, 1.6, -3.4),
+    aislePosition: new THREE.Vector3(3.85, 1.6, -0.85),
+    aisleTarget: new THREE.Vector3(7.6, 1.62, -2.45),
     side: 1,
   },
-  // 03: Zone 1 — Freestanding central Baffle 1 (front face)
+  // 02: Right Wall — Zone 1 projecting architectural bay (beside central marble bench)
   {
-    position: new THREE.Vector3(-1.65, 1.65, -4.64),
-    normal: new THREE.Vector3(0, 0, 1),
-    aislePosition: new THREE.Vector3(1.2, 1.6, 0.8),
-    aisleTarget: new THREE.Vector3(-1.1, 1.6, -5.2),
-    side: -1,
-    baffle: true,
-  },
-  // 04: Zone 1 — Right projecting architectural bay 1 (beside central marble bench)
-  {
-    position: new THREE.Vector3(5.56, 1.65, -7.2),
+    position: new THREE.Vector3(7.16, 1.65, -7.2),
     normal: new THREE.Vector3(-1, 0, 0),
-    aislePosition: new THREE.Vector3(-2.1, 1.6, -5.8),
-    aisleTarget: new THREE.Vector3(4.2, 1.6, -7.8),
+    aislePosition: new THREE.Vector3(3.85, 1.6, -5.85),
+    aisleTarget: new THREE.Vector3(7.16, 1.62, -7.45),
     side: 1,
   },
-  // 05: Zone 2 — Left recessed gallery wall bay (across from central marble bench)
+  // 03: Right Wall — Zone 2 recessed gallery bay
   {
-    position: new THREE.Vector3(-6.0, 1.65, -8.8),
-    normal: new THREE.Vector3(1, 0, 0),
-    aislePosition: new THREE.Vector3(2.2, 1.6, -6.6),
-    aisleTarget: new THREE.Vector3(-4.5, 1.6, -9.5),
-    side: -1,
-  },
-  // 06: Zone 2 — Right recessed gallery wall bay 2
-  {
-    position: new THREE.Vector3(6.0, 1.65, -12.2),
+    position: new THREE.Vector3(7.6, 1.65, -12.2),
     normal: new THREE.Vector3(-1, 0, 0),
-    aislePosition: new THREE.Vector3(-1.8, 1.6, -10.4),
-    aisleTarget: new THREE.Vector3(4.5, 1.6, -12.8),
+    aislePosition: new THREE.Vector3(3.85, 1.6, -10.85),
+    aisleTarget: new THREE.Vector3(7.6, 1.62, -12.45),
     side: 1,
   },
-  // 07: Zone 2 — Freestanding central Baffle 2 (front face)
+  // 04: Right Wall — Zone 2 projecting architectural bay
   {
-    position: new THREE.Vector3(1.65, 1.65, -13.64),
-    normal: new THREE.Vector3(0, 0, 1),
-    aislePosition: new THREE.Vector3(-1.1, 1.6, -8.2),
-    aisleTarget: new THREE.Vector3(1.2, 1.6, -14.2),
-    side: 1,
-    baffle: true,
-  },
-  // 08: Zone 2 — Left projecting architectural bay 2
-  {
-    position: new THREE.Vector3(-5.56, 1.65, -14.6),
-    normal: new THREE.Vector3(1, 0, 0),
-    aislePosition: new THREE.Vector3(1.6, 1.6, -11.2),
-    aisleTarget: new THREE.Vector3(-4.2, 1.6, -15.2),
-    side: -1,
-  },
-  // 09: Zone 2 — Right projecting architectural bay 2
-  {
-    position: new THREE.Vector3(5.56, 1.65, -17.6),
+    position: new THREE.Vector3(7.16, 1.65, -17.6),
     normal: new THREE.Vector3(-1, 0, 0),
-    aislePosition: new THREE.Vector3(-1.9, 1.6, -15.4),
-    aisleTarget: new THREE.Vector3(4.2, 1.6, -18.2),
+    aislePosition: new THREE.Vector3(3.85, 1.6, -16.25),
+    aisleTarget: new THREE.Vector3(7.16, 1.62, -17.85),
     side: 1,
   },
-  // 10: Zone 3 — Left recessed gallery wall bay 3 (beside rear marble bench)
+  // 05: Right Wall — Zone 3 recessed gallery bay
   {
-    position: new THREE.Vector3(-6.0, 1.65, -20.2),
-    normal: new THREE.Vector3(1, 0, 0),
-    aislePosition: new THREE.Vector3(2.1, 1.6, -18.2),
-    aisleTarget: new THREE.Vector3(-4.5, 1.6, -20.8),
-    side: -1,
-  },
-  // 11: Zone 3 — Freestanding central Baffle 3 (front face)
-  {
-    position: new THREE.Vector3(-1.65, 1.65, -23.24),
-    normal: new THREE.Vector3(0, 0, 1),
-    aislePosition: new THREE.Vector3(1.2, 1.6, -17.8),
-    aisleTarget: new THREE.Vector3(-1.1, 1.6, -23.8),
-    side: -1,
-    baffle: true,
-  },
-  // 12: Zone 3 — Right recessed gallery wall bay 3
-  {
-    position: new THREE.Vector3(6.0, 1.65, -22.8),
+    position: new THREE.Vector3(7.6, 1.65, -22.8),
     normal: new THREE.Vector3(-1, 0, 0),
-    aislePosition: new THREE.Vector3(-1.6, 1.6, -20.6),
-    aisleTarget: new THREE.Vector3(4.5, 1.6, -23.4),
+    aislePosition: new THREE.Vector3(3.85, 1.6, -21.45),
+    aisleTarget: new THREE.Vector3(7.6, 1.62, -23.05),
     side: 1,
   },
-  // 13: Zone 3 — Left projecting architectural bay 3
+  // 06: Right Wall — Zone 3 projecting architectural bay
   {
-    position: new THREE.Vector3(-5.56, 1.65, -26.8),
-    normal: new THREE.Vector3(1, 0, 0),
-    aislePosition: new THREE.Vector3(1.8, 1.6, -24.8),
-    aisleTarget: new THREE.Vector3(-4.2, 1.6, -27.4),
-    side: -1,
-  },
-  // 14: Zone 3 — Right projecting architectural bay 3
-  {
-    position: new THREE.Vector3(5.56, 1.65, -28.0),
+    position: new THREE.Vector3(7.16, 1.65, -28.0),
     normal: new THREE.Vector3(-1, 0, 0),
-    aislePosition: new THREE.Vector3(-1.8, 1.6, -25.8),
-    aisleTarget: new THREE.Vector3(4.2, 1.6, -28.6),
+    aislePosition: new THREE.Vector3(3.85, 1.6, -26.65),
+    aisleTarget: new THREE.Vector3(7.16, 1.62, -28.25),
     side: 1,
   },
-  // 15: Zone 3 — Focal Back Wall Centerpiece
+  // 07: Back Wall — Focal Centerpiece
   {
     position: new THREE.Vector3(0.4, 1.65, -32.85),
     normal: new THREE.Vector3(0, 0, 1),
-    aislePosition: new THREE.Vector3(-1.2, 1.6, -26.8),
-    aisleTarget: new THREE.Vector3(0.2, 1.6, -32.9),
+    aislePosition: new THREE.Vector3(0.4, 1.6, -29.1),
+    aisleTarget: new THREE.Vector3(0.4, 1.62, -32.85),
     side: 1,
+  },
+  // 08: Left Wall — Zone 3 projecting architectural bay (returning toward entrance)
+  {
+    position: new THREE.Vector3(-7.16, 1.65, -26.8),
+    normal: new THREE.Vector3(1, 0, 0),
+    aislePosition: new THREE.Vector3(-3.85, 1.6, -25.45),
+    aisleTarget: new THREE.Vector3(-7.16, 1.62, -27.05),
+    side: -1,
+  },
+  // 09: Left Wall — Zone 3 recessed gallery bay (beside rear marble bench)
+  {
+    position: new THREE.Vector3(-7.6, 1.65, -20.2),
+    normal: new THREE.Vector3(1, 0, 0),
+    aislePosition: new THREE.Vector3(-3.85, 1.6, -18.85),
+    aisleTarget: new THREE.Vector3(-7.6, 1.62, -20.45),
+    side: -1,
+  },
+  // 10: Left Wall — Zone 2 projecting architectural bay
+  {
+    position: new THREE.Vector3(-7.16, 1.65, -14.6),
+    normal: new THREE.Vector3(1, 0, 0),
+    aislePosition: new THREE.Vector3(-3.85, 1.6, -13.25),
+    aisleTarget: new THREE.Vector3(-7.16, 1.62, -14.85),
+    side: -1,
+  },
+  // 11: Left Wall — Zone 2 recessed gallery bay (across from central marble bench)
+  {
+    position: new THREE.Vector3(-7.6, 1.65, -8.8),
+    normal: new THREE.Vector3(1, 0, 0),
+    aislePosition: new THREE.Vector3(-3.85, 1.6, -7.45),
+    aisleTarget: new THREE.Vector3(-7.6, 1.62, -9.05),
+    side: -1,
+  },
+  // 12: Left Wall — Zone 1 projecting architectural bay (near entrance)
+  {
+    position: new THREE.Vector3(-7.16, 1.65, -1.3),
+    normal: new THREE.Vector3(1, 0, 0),
+    aislePosition: new THREE.Vector3(-3.85, 1.6, 0.05),
+    aisleTarget: new THREE.Vector3(-7.16, 1.62, -1.55),
+    side: -1,
+  },
+  // 13: Central Partition — Freestanding Baffle 1 (Zone 1 front face)
+  {
+    position: new THREE.Vector3(-1.65, 1.65, -4.64),
+    normal: new THREE.Vector3(0, 0, 1),
+    aislePosition: new THREE.Vector3(-1.15, 1.6, -1.05),
+    aisleTarget: new THREE.Vector3(-1.65, 1.62, -4.64),
+    side: -1,
+    baffle: true,
+  },
+  // 14: Central Partition — Freestanding Baffle 2 (Zone 2 front face)
+  {
+    position: new THREE.Vector3(1.65, 1.65, -13.64),
+    normal: new THREE.Vector3(0, 0, 1),
+    aislePosition: new THREE.Vector3(1.75, 1.6, -10.05),
+    aisleTarget: new THREE.Vector3(1.65, 1.62, -13.64),
+    side: 1,
+    baffle: true,
+  },
+  // 15: Central Partition — Freestanding Baffle 3 (Zone 3 front face)
+  {
+    position: new THREE.Vector3(-1.65, 1.65, -23.24),
+    normal: new THREE.Vector3(0, 0, 1),
+    aislePosition: new THREE.Vector3(-1.85, 1.6, -19.65),
+    aisleTarget: new THREE.Vector3(-1.65, 1.62, -23.24),
+    side: -1,
+    baffle: true,
   },
 ];
 
-function slotForIndex(index: number): MountSlot {
+// Compact 8-slot U-Loop + Central Baffles sequence when count <= 8 (roomLength = 31)
+const COMPACT_SLOTS: MountSlot[] = [
+  CURATED_SLOTS[0], // 01: Right Wall z = -2.2
+  CURATED_SLOTS[1], // 02: Right Wall z = -7.2
+  CURATED_SLOTS[2], // 03: Right Wall z = -12.2
+  CURATED_SLOTS[3], // 04: Right Wall z = -17.6
+  CURATED_SLOTS[9], // 05: Left Wall z = -14.6
+  CURATED_SLOTS[10], // 06: Left Wall z = -8.8
+  CURATED_SLOTS[11], // 07: Left Wall z = -1.3
+  CURATED_SLOTS[12], // 08: Central Baffle 1 z = -4.64
+];
+
+function slotForIndex(index: number, totalCount = 15): MountSlot {
+  if (totalCount <= 8 && index < COMPACT_SLOTS.length) {
+    return COMPACT_SLOTS[index];
+  }
   if (index < CURATED_SLOTS.length) return CURATED_SLOTS[index];
   const extra = index - CURATED_SLOTS.length;
-  const side = extra % 2 === 0 ? -1 : 1;
+  const side = extra % 2 === 0 ? 1 : -1;
   const z = -34.2 - Math.floor(extra / 2) * 4.8 - (side > 0 ? 1.4 : 0);
   return {
-    position: new THREE.Vector3(side * 6.0, 1.65, z),
+    position: new THREE.Vector3(side * 7.6, 1.65, z),
     normal: new THREE.Vector3(-side, 0, 0),
-    aislePosition: new THREE.Vector3(-side * 1.8, 1.6, z + 3.0),
-    aisleTarget: new THREE.Vector3(side * 4.2, 1.6, z - 0.6),
+    aislePosition: new THREE.Vector3(side * 3.85, 1.6, z + 1.35),
+    aisleTarget: new THREE.Vector3(side * 7.6, 1.62, z - 0.25),
     side,
   };
 }
@@ -283,7 +303,7 @@ export class FrameManager {
     const dropShadow = dropShadowMaterial();
     const bezels = new Map<string, THREE.BufferGeometry>();
     photos.forEach((photo, index) => {
-      const slot = slotForIndex(index);
+      const slot = slotForIndex(index, photos.length);
       const maxWidth = slot.baffle ? 1.78 : 2.32;
       const maxHeight = slot.baffle ? 1.88 : 1.98;
       let width = Math.min(maxWidth, 1.56 * photo.aspectRatio);

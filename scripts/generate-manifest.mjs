@@ -261,6 +261,8 @@ export async function generateManifest({
       exif,
       sample: Boolean(info.sample),
       credit: info.credit || null,
+      ...(info.caption && { caption: info.caption }),
+      ...(info.permalink && { permalink: info.permalink }),
     });
   }
   // Atomic replacement prevents the dev server from reading a half-written manifest.

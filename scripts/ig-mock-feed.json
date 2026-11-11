@@ -1,0 +1,42 @@
+{
+  "data": [
+    {
+      "id": "17900000000000001",
+      "media_type": "IMAGE",
+      "media_url": "sample-sources/01.jpg",
+      "permalink": "https://www.instagram.com/p/MOCK0001/",
+      "timestamp": "2025-06-18T17:42:00+0000",
+      "caption": "Alpine silence.\nLast light over the Dolomites, waiting for the clouds to break.\n\nFujifilm X-T5 · 35mm · f/5.6 · 1/250s · ISO 200\n\n#dolomites #fujifilm #35mm"
+    },
+    {
+      "id": "17900000000000002",
+      "media_type": "CAROUSEL_ALBUM",
+      "permalink": "https://www.instagram.com/p/MOCK0002/",
+      "timestamp": "2025-03-02T09:10:00+0000",
+      "caption": "The space between\nStudies in architecture, Seoul. Leica M6, 1/125 sec\n#architecture #filmisnotdead",
+      "children": {
+        "data": [
+          { "id": "17900000000000021", "media_type": "IMAGE", "media_url": "sample-sources/02.jpg" },
+          { "id": "17900000000000022", "media_type": "IMAGE", "media_url": "sample-sources/05.jpg" },
+          { "id": "17900000000000023", "media_type": "VIDEO", "media_url": "https://example.invalid/clip.mp4" }
+        ]
+      }
+    },
+    {
+      "id": "17900000000000003",
+      "media_type": "IMAGE",
+      "media_url": "sample-sources/03.jpg",
+      "permalink": "https://www.instagram.com/p/MOCK0003/",
+      "timestamp": "2024-11-30T06:05:00+0000",
+      "caption": "🌊🌊🌊\n#bluehour #coast"
+    },
+    {
+      "id": "17900000000000004",
+      "media_type": "VIDEO",
+      "media_url": "https://example.invalid/reel.mp4",
+      "permalink": "https://www.instagram.com/reel/MOCK0004/",
+      "timestamp": "2024-10-01T12:00:00+0000",
+      "caption": "Reels are skipped."
+    }
+  ]
+}
