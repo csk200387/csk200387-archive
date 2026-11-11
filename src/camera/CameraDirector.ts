@@ -194,6 +194,9 @@ export class CameraDirector {
     this.state = { index, inspecting: shouldInspect, roaming: false };
     this.keys.clear();
     this.velocity.set(0, 0, 0);
+    // Populate the current placard before measuring its exclusion area. This is
+    // navigation/resize work only; the animation loop never reads DOM layout.
+    this.notify();
 
     let position = this.startPosition.clone();
     let target = this.startTarget.clone();
@@ -231,9 +234,41 @@ export class CameraDirector {
           const fit =
             Math.max(frame.height / 2, frame.width / (2 * this.camera.aspect)) /
             halfFovTan;
-          const dist = Math.max(1.65, fit * 1.24);
-          position = frame.center.clone().addScaledVector(frame.normal, dist);
-          position.y = frame.center.y;
+          let dist = Math.max(1.65, fit * 1.24);
+          if (frame.aspectRatio >= 1.15) {
+            dist *= 1.16;
+            const placard = document.querySelector<HTMLElement>(
+              ".placard:not([hidden])",
+            );
+            const bounds = placard?.getBoundingClientRect();
+            const topMargin = 64;
+            const bottomLimit = bounds
+              ? bounds.top - this.canvasTop - 24
+              : vh - 212;
+            // Include the bronze bezel. Extra distance is only needed if a tall
+            // caption leaves less space than the usual 16% pullback provides.
+            const outerHeight = frame.height + 0.012;
+            dist = Math.max(
+              dist,
+              (outerHeight * vh) /
+                (2 * halfFovTan * Math.max(vh * 0.3, bottomLimit - topMargin)) +
+                0.002,
+            );
+            const visibleHeight = 2 * (dist - 0.002) * halfFovTan;
+            const projectedHalfHeight = (outerHeight / visibleHeight) * vh / 2;
+            const centerY = Math.max(
+              topMargin + projectedHalfHeight,
+              Math.min(vh * 0.445, bottomLimit - projectedHalfHeight),
+            );
+            // Moving the optical axis left/down moves the art right/up. Translate
+            // position AND target identically to retain a square-on photograph.
+            target.addScaledVector(
+              frame.tangent,
+              -visibleHeight * this.camera.aspect * 0.07,
+            );
+            target.y += (centerY / vh - 0.5) * visibleHeight;
+          }
+          position = target.clone().addScaledVector(frame.normal, dist);
         }
       } else {
         // Wide-angle gallery aisle viewpoint showing multiple artworks & room context
@@ -243,7 +278,6 @@ export class CameraDirector {
     }
 
     this.transition(position, target);
-    this.notify();
   }
 
   step(direction: number) {

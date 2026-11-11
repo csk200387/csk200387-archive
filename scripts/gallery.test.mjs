@@ -74,7 +74,8 @@ test("desktop navigation, inspection, click-outside, drag, and index lightbox", 
   );
   await page.locator('.placard [data-action="prev"]').click();
   await page.waitForTimeout(1800);
-  await page.mouse.click(1380, 700);
+  // Blank wall stays outside both the print and its new clickable label.
+  await page.mouse.click(60, 400);
   await page.waitForSelector(".placard[hidden]", { state: "attached" });
   assert.match(
     await page.locator(".hud-bottom-counter").textContent(),
@@ -285,6 +286,13 @@ test("picking matches mesh raycasting and repeated GPU release/resume does not l
   // Warm the same view before every resource comparison.
   await page.evaluate(() => window.testGallery.director.go(-1));
   await page.waitForTimeout(1850);
+  await page.evaluate(() => {
+    window.labelDisposals = 0;
+    for (const label of window.testGallery.frames.hitTargets) {
+      if (label.userData.kind === "wall-label")
+        label.material.map.addEventListener("dispose", () => window.labelDisposals++);
+    }
+  });
   const activeCounts = [];
   for (let cycle = 0; cycle < 4; cycle++) {
     await page.evaluate(() => window.testGallery.setActive(false));
@@ -299,6 +307,7 @@ test("picking matches mesh raycasting and repeated GPU release/resume does not l
     });
     assert.equal(paused.geometries, 0);
     assert.equal(paused.textures, 0);
+    assert.equal(await page.evaluate(() => window.labelDisposals), 15 * (cycle + 1));
     await page.waitForTimeout(150);
     assert.deepEqual(
       await page.evaluate(() => {
@@ -356,6 +365,195 @@ test("picking matches mesh raycasting and repeated GPU release/resume does not l
   assert.equal(await page.locator("canvas").count(), 0);
 });
 
+test("landscape bronze frames clear the live placard and wall labels inspect their artwork", async (t) => {
+  const page = await pageFor(t, { reducedMotion: "reduce" });
+  await page.goto(`${base}?view=index`);
+  await page.waitForSelector(".photo-card");
+  await page.evaluate(async () => {
+    const { Gallery } = await import("./src/Gallery.ts");
+    const { HudAndStaticView } = await import("./src/ui/HudAndStaticView.ts");
+    const photos = await (await fetch("./photos.json")).json();
+    const ui = new HudAndStaticView(photos, {
+      go: (index, inspect) => window.testGallery.director.go(index, inspect),
+      step: (direction) => window.testGallery.director.step(direction),
+      exit: () => window.testGallery.director.exit(),
+      mode: () => {},
+    });
+    window.testUi = ui;
+    window.testPhotos = photos;
+    ui.setMode("3d");
+    const g = window.testGallery = new Gallery(ui.viewport, photos, (state) => ui.update(state), () => {});
+    await g.ready;
+    g.setActive(true);
+    ui.setLoading(false);
+  });
+  for (const viewport of [
+    { width: 1280, height: 720 },
+    { width: 1440, height: 900 },
+    { width: 1920, height: 1080 },
+    { width: 1680, height: 1050 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.waitForFunction(() => window.testGallery.camera.aspect === innerWidth / innerHeight);
+    const result = await page.evaluate(async () => {
+      const { Vector3 } = await import("./node_modules/three/build/three.module.js");
+      const g = window.testGallery;
+      g.resize();
+      g.renderer.setAnimationLoop(null);
+      const failures = [];
+      let landscapes = 0;
+      for (const frame of g.frames.frames) {
+        if (frame.aspectRatio < 1.15) continue;
+        landscapes++;
+        g.director.go(frame.index, true);
+        g.director.update(0, 1.7);
+        g.camera.updateMatrixWorld();
+        const corners = [];
+        for (const x of [-1, 1]) for (const y of [-1, 1]) {
+          const p = new Vector3(x * (frame.width / 2 + 0.006), y * (frame.height / 2 + 0.006), 0.039);
+          p.applyMatrix4(frame.group.matrixWorld).project(g.camera);
+          corners.push({ x: (p.x + 1) * innerWidth / 2, y: (1 - p.y) * innerHeight / 2 });
+        }
+        const left = Math.min(...corners.map((p) => p.x));
+        const right = Math.max(...corners.map((p) => p.x));
+        const top = Math.min(...corners.map((p) => p.y));
+        const bottom = Math.max(...corners.map((p) => p.y));
+        const hud = document.querySelector(".placard").getBoundingClientRect();
+        if (bottom > hud.top - 20 || top < 60 || left < 0 || right > innerWidth || (left + right) / 2 <= innerWidth / 2)
+          failures.push({ index: frame.index, left, right, top, bottom, hudTop: hud.top });
+      }
+      return { failures, landscapes };
+    });
+    assert.ok(result.landscapes > 0);
+    assert.deepEqual(result.failures, [], JSON.stringify({ viewport, ...result }));
+  }
+  // Repeat the narrowest desktop with caption, title and permalink wrapping.
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.waitForFunction(() => window.testGallery.camera.aspect === innerWidth / innerHeight);
+  const captionClear = await page.evaluate(async () => {
+    const { Vector3 } = await import("./node_modules/three/build/three.module.js");
+    const g = window.testGallery;
+    Object.assign(window.testPhotos[0], {
+      title: "A long archive title that wraps across the museum placard",
+      description: "A long caption about this landscape and the journey home. ".repeat(8),
+      permalink: "https://www.instagram.com/p/TEST/",
+    });
+    window.testUi.placardIndex = -1;
+    g.resize();
+    g.director.go(0, true);
+    g.director.update(0, 1.7);
+    g.camera.updateMatrixWorld();
+    const f = g.frames.frames[0];
+    const bottom = new Vector3(0, -f.height / 2 - 0.006, 0.039).applyMatrix4(f.group.matrixWorld).project(g.camera);
+    return (1 - bottom.y) * innerHeight / 2 < document.querySelector(".placard").getBoundingClientRect().top - 20;
+  });
+  assert.equal(captionClear, true);
+  const labels = await page.evaluate(async () => {
+    const { Vector3, Raycaster, Vector2 } = await import("./node_modules/three/build/three.module.js");
+    const g = window.testGallery;
+    const labels = g.frames.hitTargets.filter((m) => m.userData.kind === "wall-label");
+    const caster = new Raycaster();
+    const points = [];
+    for (const label of labels) {
+      g.director.go(label.userData.index, false);
+      g.director.update(0, 1.7);
+      g.camera.updateMatrixWorld();
+      const p = label.getWorldPosition(new Vector3()).project(g.camera);
+      caster.setFromCamera(new Vector2(p.x, p.y), g.camera);
+      points.push({ index: label.userData.index, hit: g.frames.pick(caster.ray), visible: Math.abs(p.x) < 1 && Math.abs(p.y) < 1 });
+    }
+    g.director.go(0, false);
+    g.director.update(0, 1.7);
+    g.camera.updateMatrixWorld();
+    const p = labels[0].getWorldPosition(new Vector3()).project(g.camera);
+    g.renderer.render(g.scene, g.camera);
+    return {
+      count: labels.length,
+      geometries: new Set(labels.map((m) => m.geometry)).size,
+      points,
+      click: { x: (p.x + 1) * innerWidth / 2, y: (1 - p.y) * innerHeight / 2 },
+    };
+  });
+  assert.equal(labels.count, 15);
+  assert.equal(labels.geometries, 1);
+  for (const point of labels.points) {
+    assert.equal(point.hit, point.index);
+    assert.equal(point.visible, true);
+  }
+  assert.equal(await page.locator(".placard").isVisible(), false);
+  await page.mouse.click(labels.click.x, labels.click.y);
+  assert.equal(await page.locator(".placard").isVisible(), true);
+  assert.match(await page.locator(".placard-index").first().textContent(), /01 \/ 15/);
+  await page.evaluate(() => window.testGallery.dispose());
+});
+
+test("physical plaques omit sequences and support absent, fallback and preferred captions", async (t) => {
+  const page = await pageFor(t);
+  await page.goto(`${base}?view=index`);
+  await page.waitForSelector(".photo-card");
+  const result = await page.evaluate(async () => {
+    const { FrameManager } = await import("./src/scene/FrameManager.ts");
+    const { releaseSceneGpu } = await import("./src/scene/SceneResources.ts");
+    const { Scene } = await import("./node_modules/three/build/three.module.js");
+    const photos = (await (await fetch("./photos.json")).json()).slice(0, 3);
+    for (const photo of photos) {
+      photo.title = "20220815_01";
+      delete photo.description;
+      delete photo.caption;
+      photo.location = "";
+    }
+    photos[1].description = "  ";
+    photos[1].title = "Archive № 02 — 2022-11-13";
+    photos[1].caption = "Evening light";
+    photos[2].description = "Quiet courtyard";
+    photos[2].caption = "Unused fallback";
+    const drawn = new WeakMap();
+    const prototype = CanvasRenderingContext2D.prototype;
+    const fillText = prototype.fillText;
+    prototype.fillText = function (text, ...args) {
+      const lines = drawn.get(this.canvas) || [];
+      lines.push(text);
+      drawn.set(this.canvas, lines);
+      return fillText.call(this, text, ...args);
+    };
+    const scene = new Scene();
+    let frames;
+    try {
+      frames = new FrameManager(scene, photos);
+      await frames.ready;
+      const labels = frames.hitTargets.filter((m) => m.userData.kind === "wall-label");
+      const bodies = frames.frames.map((f, i) => f.group.getObjectByName(`wall-label-body-${i + 1}`));
+      const shadows = frames.frames.map((f, i) => f.group.getObjectByName(`wall-label-shadow-${i + 1}`));
+      bodies[0].geometry.computeBoundingBox();
+      const bounds = bodies[0].geometry.boundingBox;
+      return {
+        lines: labels.map((m) => drawn.get(m.material.map.image)),
+        matte: labels.every((m) => m.material.isMeshStandardMaterial && m.material.emissive.getHex() === 0 && m.material.roughness > 0.9),
+        sharedBodies: new Set(bodies.map((m) => m.geometry)).size,
+        thickness: bounds.max.z - bounds.min.z,
+        shadowBehind: shadows.every((m, i) => m.position.z < bodies[i].position.z && bodies[i].position.z < labels[i].position.z),
+      };
+    } finally {
+      prototype.fillText = fillText;
+      releaseSceneGpu(scene);
+      frames?.dispose();
+      scene.clear();
+    }
+  });
+  for (const lines of result.lines) {
+    assert.equal(lines[0], "Archive");
+    assert.ok(!lines.some((line) => /№|^\d+\s*\/\s*\d+$|undefined|null/.test(line)));
+  }
+  assert.ok(!result.lines[0].includes("Evening light"));
+  assert.ok(result.lines[1].includes("Evening light"));
+  assert.ok(result.lines[2].includes("Quiet courtyard"));
+  assert.ok(!result.lines[2].includes("Unused fallback"));
+  assert.equal(result.matte, true);
+  assert.equal(result.sharedBodies, 1);
+  assert.ok(Math.abs(result.thickness - 0.006) < 1e-8);
+  assert.equal(result.shadowBehind, true);
+});
+
 test("late image loads cannot recreate resources after disposal", async (t) => {
   const page = await pageFor(t);
   await page.goto(`${base}?view=index`);
@@ -380,7 +578,7 @@ test("late image loads cannot recreate resources after disposal", async (t) => {
       () => {},
     ));
     window.printMaterials = g.frames.hitTargets
-      .filter((m) => m.material.isMeshBasicMaterial)
+      .filter((m) => m.userData.kind === "photo" && m.material.isMeshBasicMaterial)
       .map((m) => m.material);
     g.dispose();
   });

@@ -1,12 +1,16 @@
 import * as THREE from "three";
 import { mergeStaticGeometry } from "./StaticGeometry";
 import { photoUrl, type Photo } from "../types";
+import { artworkCaption, displayTitle, formatExifLine } from "../photoMetadata";
+import { roomLength } from "./RoomBuilder";
 
 export interface FrameEntry {
   index: number;
   group: THREE.Group;
   center: THREE.Vector3;
   normal: THREE.Vector3;
+  tangent: THREE.Vector3;
+  aspectRatio: number;
   aislePosition: THREE.Vector3;
   aisleTarget: THREE.Vector3;
   side: number;
@@ -205,12 +209,14 @@ varying mediump vec2 vUv;uniform vec3 tint;uniform float strength;
   });
 }
 
-function dropShadowMaterial() {
+function dropShadowMaterial(wallLabel = false) {
   return new THREE.ShaderMaterial({
     transparent: true,
-    depthWrite: false,
+    depthWrite: wallLabel,
+    depthTest: true,
     polygonOffset: true,
-    polygonOffsetFactor: -2,
+    polygonOffsetFactor: wallLabel ? -1 : -2,
+    polygonOffsetUnits: wallLabel ? -4 : 0,
     vertexShader: vertex,
     fragmentShader: `precision mediump float;
 varying mediump vec2 vUv;
@@ -219,6 +225,7 @@ varying mediump vec2 vUv;
       float sx = 1.0 - smoothstep(0.39, 0.5, p.x);
       float sy = 1.0 - smoothstep(0.39, 0.5, p.y);
       float shadow = sx * sy;
+      ${wallLabel ? "if (shadow < 0.001) discard;" : ""}
       gl_FragColor = vec4(0.11, 0.10, 0.08, shadow * 0.42);
     }`,
   });
@@ -262,6 +269,95 @@ function createHighAcuityTexture(
   return texture;
 }
 
+const LABEL_WIDTH = 0.36;
+const LABEL_HEIGHT = 0.225;
+const LABEL_GAP = 0.16;
+const LABEL_DEPTH = 0.006;
+const LABEL_BEVEL = 0.0007;
+// Separate all depth layers, including the paper face and bronze front cap.
+const LABEL_WALL_OFFSET = 0.008;
+const LABEL_SHADOW_OFFSET = 0.006;
+const LABEL_FACE_GAP = 0.001;
+
+/** One shallow, chamfered bronze body shared by every plaque. */
+function createLabelBodyGeometry(): THREE.ExtrudeGeometry {
+  const x = LABEL_WIDTH / 2 - LABEL_BEVEL;
+  const y = LABEL_HEIGHT / 2 - LABEL_BEVEL;
+  const outline = new THREE.Shape();
+  outline.moveTo(-x, -y);
+  outline.lineTo(x, -y);
+  outline.lineTo(x, y);
+  outline.lineTo(-x, y);
+  outline.closePath();
+  const geometry = new THREE.ExtrudeGeometry(outline, {
+    depth: LABEL_DEPTH - 2 * LABEL_BEVEL,
+    bevelEnabled: true,
+    bevelThickness: LABEL_BEVEL,
+    bevelSize: LABEL_BEVEL,
+    bevelSegments: 1,
+    steps: 1,
+    curveSegments: 1,
+  });
+  geometry.translate(0, 0, LABEL_BEVEL);
+  return geometry;
+}
+
+/** Typeset once at construction; canvas sources survive GPU release/resume. */
+function createWallLabelTexture(
+  photo: Photo,
+  maxAnisotropy: number,
+): THREE.CanvasTexture {
+  const canvas = document.createElement("canvas");
+  canvas.width = 512;
+  canvas.height = 320;
+  const ctx = canvas.getContext("2d")!;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "#f3efe8";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.textBaseline = "top";
+  ctx.fillStyle = "#24231f";
+
+  // Wrap at measured glyph boundaries (including CJK), never squeeze lettering.
+  const drawLines = (text: string, y: number, maxLines: number, lineHeight: number) => {
+    const glyphs = Array.from(text.replace(/\s+/g, " ").trim());
+    let cursor = 0;
+    for (let line = 0; line < maxLines && cursor < glyphs.length; line++) {
+      let value = "";
+      while (cursor < glyphs.length) {
+        const candidate = value + glyphs[cursor];
+        const suffix = line === maxLines - 1 && cursor < glyphs.length - 1 ? "…" : "";
+        if (ctx.measureText(candidate + suffix).width > 456) break;
+        value = candidate;
+        cursor++;
+      }
+      if (line === maxLines - 1 && cursor < glyphs.length) value += "…";
+      ctx.fillText(value.trim(), 28, y + line * lineHeight);
+    }
+  };
+  ctx.font = "bold 36px Helvetica, Arial, sans-serif";
+  drawLines(displayTitle(photo), 28, 2, 41);
+  ctx.fillStyle = "#575249";
+  ctx.font = "26px Helvetica, Arial, sans-serif";
+  if (photo.exif.date) drawLines(photo.exif.date, 118, 1, 30);
+  const caption = [artworkCaption(photo), photo.location?.trim()]
+    .filter(Boolean)
+    .join(" · ");
+  if (caption) {
+    ctx.font = "25px Helvetica, Arial, sans-serif";
+    drawLines(caption, 166, 2, 30);
+  }
+  ctx.fillStyle = "#44423b";
+  ctx.font = "23px Menlo, Consolas, monospace";
+  drawLines(formatExifLine(photo), 253, 2, 26);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = maxAnisotropy;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  return texture;
+}
+
 export class FrameManager {
   readonly frames: FrameEntry[] = [];
   readonly hitTargets: THREE.Mesh[] = [];
@@ -300,7 +396,18 @@ export class FrameManager {
 
     const planeGeometry = new THREE.PlaneGeometry(1, 1);
     const boxGeometry = new THREE.BoxGeometry(1, 1, 1);
+    const labelBodyGeometry = createLabelBodyGeometry();
+    // Bias every plaque layer equally so the shadow cannot cross the bronze
+    // edge at oblique angles. Do not change the artwork bezel material.
+    const labelBronze = microBronze.clone();
+    labelBronze.depthWrite = true;
+    labelBronze.depthTest = true;
+    labelBronze.polygonOffset = true;
+    labelBronze.polygonOffsetFactor = -1;
+    labelBronze.polygonOffsetUnits = -4;
     const dropShadow = dropShadowMaterial();
+    // Label shadows write depth; keep the artwork shadow material independent.
+    const labelDropShadow = dropShadowMaterial(true);
     const bezels = new Map<string, THREE.BufferGeometry>();
     photos.forEach((photo, index) => {
       const slot = slotForIndex(index, photos.length);
@@ -410,6 +517,71 @@ export class FrameManager {
       group.add(print);
       this.hitTargets.push(print);
 
+      // A flush architectural label, with the same shared unit plane as prints.
+      // On a narrow baffle keep the entire card on plaster below the right corner.
+      const labelRight = width / 2 + bezelThickness + LABEL_GAP + LABEL_WIDTH;
+      const belowFrame = Boolean(slot.baffle && labelRight > 1.25 - 0.06);
+      const label = new THREE.Mesh(
+        planeGeometry,
+        new THREE.MeshStandardMaterial({
+          map: createWallLabelTexture(photo, maxAnisotropy),
+          roughness: 0.96,
+          metalness: 0,
+          depthWrite: true,
+          depthTest: true,
+          polygonOffset: true,
+          polygonOffsetFactor: -1,
+          polygonOffsetUnits: -4,
+        }),
+      );
+      label.name = `wall-label-${index + 1}`;
+      label.scale.set(
+        LABEL_WIDTH - 2 * LABEL_BEVEL,
+        LABEL_HEIGHT - 2 * LABEL_BEVEL,
+        1,
+      );
+      // The back-wall frame has a 4cm mounting stand-off; measure the plaque's
+      // clearance from the actual wall, as with perimeter and baffle labels.
+      const wallOffset = slot.normal.z === 1 && !slot.baffle
+        ? 7 - roomLength(photos.length) + 0.11 - slot.position.z
+        : 0;
+      label.position.set(
+        belowFrame
+          ? width / 2 + bezelThickness - LABEL_WIDTH / 2
+          : width / 2 + bezelThickness + LABEL_GAP + LABEL_WIDTH / 2,
+        belowFrame
+          ? -height / 2 - bezelThickness - LABEL_GAP - LABEL_HEIGHT / 2
+          : -height / 2 - bezelThickness + LABEL_HEIGHT / 2,
+        wallOffset + LABEL_WALL_OFFSET + LABEL_DEPTH + LABEL_FACE_GAP,
+      );
+      const labelBody = new THREE.Mesh(labelBodyGeometry, labelBronze);
+      labelBody.name = `wall-label-body-${index + 1}`;
+      labelBody.position.set(
+        label.position.x, label.position.y, wallOffset + LABEL_WALL_OFFSET,
+      );
+      labelBody.castShadow = true;
+      // The submillimetre bevel should not sample its own coarse shadow map.
+      labelBody.receiveShadow = false;
+      group.add(labelBody);
+
+      // Keep the shadow clear of plaster and behind the raised plaque body.
+      // Zero-alpha fragments are discarded so they cannot occlude other effects.
+      const labelShadow = new THREE.Mesh(planeGeometry, labelDropShadow);
+      labelShadow.name = `wall-label-shadow-${index + 1}`;
+      labelShadow.scale.set(LABEL_WIDTH + 0.04, LABEL_HEIGHT + 0.04, 1);
+      labelShadow.position.set(
+        label.position.x + 0.002,
+        label.position.y - 0.003,
+        wallOffset + LABEL_SHADOW_OFFSET,
+      );
+      group.add(labelShadow);
+
+      label.userData = { kind: "wall-label", index };
+      group.add(label);
+      this.hitTargets.push(label);
+      // Keeping the texture on material.map registers it with releaseSceneGpu's
+      // deduplicated texture lifecycle, including hidden / offscreen plaques.
+
       loading.push(
         imageLoader.loadAsync(photoUrl(photo)).then((image) => {
           // Pending image requests may settle after teardown or a failed load.
@@ -442,6 +614,8 @@ export class FrameManager {
         group,
         center: slot.position.clone().addScaledVector(slot.normal, 0.038),
         normal: slot.normal.clone(),
+        tangent: new THREE.Vector3(slot.normal.z, 0, -slot.normal.x),
+        aspectRatio: photo.aspectRatio,
         aislePosition: slot.aislePosition.clone(),
         aisleTarget: slot.aisleTarget.clone(),
         side: slot.side,

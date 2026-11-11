@@ -3,7 +3,8 @@ export interface Photo {
   src: string;
   title: string;
   location: string;
-  description: string;
+  /** Optional prose displayed beneath the artwork title. */
+  description?: string;
   width: number;
   height: number;
   aspectRatio: number;
@@ -20,6 +21,7 @@ export interface Photo {
   };
   sample: boolean;
   credit: { label: string; url: string; source?: string } | null;
+  /** Caption fallback when a separate description is absent. */
   caption?: string;
   permalink?: string;
 }

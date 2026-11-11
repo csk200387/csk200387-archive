@@ -1,3 +1,4 @@
+import { artworkCaption, displayTitle, formatExifLine } from "../photoMetadata";
 import { photoUrl, type Photo } from "../types";
 import type { CameraState } from "../camera/CameraDirector";
 
@@ -21,39 +22,9 @@ const esc = (text: unknown) =>
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
-function formatExifLine(photo: Photo): string {
-  const focal = photo.exif.focalLength
-    ? photo.exif.focalLength.replace(/\s+/g, "").toUpperCase()
-    : null;
-  const aperture = photo.exif.aperture
-    ? photo.exif.aperture.replace(/ƒ/g, "F").replace(/\s+/g, "").toUpperCase()
-    : null;
-  const shutter = photo.exif.shutterSpeed
-    ? photo.exif.shutterSpeed.replace(/\s+/g, "").toUpperCase()
-    : null;
-  const iso = photo.exif.iso ? `ISO ${photo.exif.iso}` : null;
-  const specs = [focal, aperture, shutter, iso].filter(Boolean);
-  if (specs.length) return specs.join(" · ");
-  return [photo.exif.date, photo.ratioLabel, `${photo.width}×${photo.height}`]
-    .filter(Boolean)
-    .join(" · ")
-    .toUpperCase();
-}
-
 function filenameOf(photo: Photo): string {
   const raw = decodeURIComponent(photo.src.split("/").pop() || photo.id);
   return raw.toUpperCase();
-}
-
-function displayTitle(photo: Photo, index: number): string {
-  const t = (photo.title || "").trim();
-  // If title is missing or purely camera-generated timestamp digits/suffixes, format as clean archive entry
-  if (!t || /^[\d\s._-]+(\.NIGHT[\d\s_-]*)?$/i.test(t)) {
-    return photo.exif.date
-      ? `Archive № ${pad(index + 1)} — ${photo.exif.date}`
-      : `Archive № ${pad(index + 1)}`;
-  }
-  return t;
 }
 
 export class HudAndStaticView {
@@ -86,7 +57,7 @@ export class HudAndStaticView {
         <button type="button" class="hud-back-gallery" aria-label="Back to gallery" hidden>[ ← BACK TO GALLERY ]</button>
       </header>
       <main>
-        <div id="viewport" role="region" aria-label="Interactive 3D photography gallery. Click a photograph to inspect, scroll or use arrow keys to navigate, drag to look around." tabindex="0"></div>
+        <div id="viewport" role="region" aria-label="Interactive 3D photography gallery. Click a photograph or its wall label to inspect, scroll or use arrow keys to navigate, drag to look around." tabindex="0"></div>
         <aside class="placard" aria-label="Photograph placard" hidden></aside>
         <nav class="hud-bottom-bar" aria-label="Gallery controls">
           <button type="button" class="hud-prev">[ ← PREV ]</button>
@@ -289,6 +260,7 @@ export class HudAndStaticView {
   };
 
   private renderPlacardMarkup(photo: Photo, index: number) {
+    const caption = artworkCaption(photo);
     // Only https links reach href; a hand-edited sidecar cannot inject javascript: URLs.
     const link = /^https:\/\//.test(photo.permalink ?? "")
       ? `<a class="placard-link" href="${esc(photo.permalink)}" target="_blank" rel="noopener noreferrer">[ ↗ INSTAGRAM ]</a>`
@@ -299,7 +271,7 @@ export class HudAndStaticView {
         <span class="placard-file">${esc(filenameOf(photo))}</span>
       </div>
       <h2 class="placard-title">${esc(displayTitle(photo, index))}</h2>
-      ${photo.description ? `<p class="placard-caption">${esc(photo.description)}</p>` : ""}
+      ${caption ? `<p class="placard-caption">${esc(caption)}</p>` : ""}
       <p class="placard-exif">${esc(formatExifLine(photo))}</p>
       <nav class="placard-nav" aria-label="Photograph controls">
         <button type="button" data-action="prev">[ ← PREV ]</button>
